@@ -37,24 +37,44 @@ Gate закрывается только evidence, а не планом.
 
 Цель — получить безопасный машинный снимок без изменения рабочей конфигурации.
 
-Нужно установить:
+0A выполняется в два шага, разделённых version-lock проверкой:
+
+#### 0A.1. Minimal inventory
+
+До version-lock разрешены только:
 
 1. platform/shell;
-2. путь и версию `opencode`;
-3. наличие/версию `opencode2`;
+2. путь и версия `opencode`;
+3. наличие/версия `opencode2`;
 4. path-based hint способа установки без попытки reconcile;
-5. стандартные/global/custom/project config candidates;
+5. стандартные/global/custom/project config candidates — metadata only;
 6. наличие `OPENCODE_CONFIG`, `OPENCODE_CONFIG_DIR`, `OPENCODE_CONFIG_CONTENT` без раскрытия inline content;
-7. доступность `--pure`/`debug`;
-8. resolved permission view, только если её можно получить без загрузки внешних plugins;
-9. agent-specific permission layers;
-10. Git worktree для target directory.
+7. advertised CLI capabilities из `--help`;
+8. Git worktree для target directory.
 
-Canonical tool: `tools/stage0_inventory.py`.
+Canonical command:
+
+```text
+python tools/stage0_inventory.py --project-dir . --output stage0_inventory.json
+```
+
+#### 0A.2. Resolved permission view
+
+Не запускать автоматически после 0A.1.
+
+Сначала ChatGPT Web должен по exact версии из 0A.1 подтвердить, что используемый mechanism (`--pure`, `debug config` или version-specific эквивалент) действительно read-only и не загружает внешние plugins/agents с побочными эффектами.
+
+Только после явного разрешения Web допускается получить:
+
+- effective permission(s);
+- default agent;
+- agent-specific permission(s)/mode.
+
+Canonical tool поддерживает `--resolved-permissions`, но наличие опции в `--help` само по себе **не является разрешением на её запуск**.
 
 ### 0B. Version-locked source audit
 
-После 0A ChatGPT Web должен для **точной установленной версии** проверить:
+После 0A.1 ChatGPT Web должен для **точной установленной версии** проверить:
 
 - официальную документацию;
 - upstream source/tests этой версии при недостатке или противоречии docs;
@@ -64,13 +84,16 @@ Canonical tool: `tools/stage0_inventory.py`.
 - `always/once/reject` semantics;
 - external-directory enforcement;
 - agent/subagent permission behavior;
-- relevant plugin/custom-tool hooks.
+- relevant plugin/custom-tool hooks;
+- safety/semantics механизма resolved-config probe для 0A.2.
 
 Результат фиксируется как version-specific findings/report, а не в persistent baseline.
 
+После этой проверки Web либо разрешает 0A.2, либо помечает resolved-config probe как unavailable/unsafe и использует другие read-only evidence sources.
+
 ### 0C. Isolated native permission probes
 
-После 0B формируется минимальный набор runtime probes только для вопросов, которые нельзя надёжно закрыть source audit.
+После 0B и, если разрешён, 0A.2 формируется минимальный набор runtime probes только для вопросов, которые нельзя надёжно закрыть source audit.
 
 Принципы:
 
@@ -193,16 +216,21 @@ notes:
 - включать `--auto`;
 - выполнять permission test commands.
 
+### До version-lock (0A.1)
+
 Допустимо:
 
 - `--version`;
 - `--help`;
 - path discovery;
 - file existence/size/mtime metadata;
-- `git rev-parse --show-toplevel`;
-- `opencode --pure debug config` только если target CLI явно поддерживает `--pure`.
+- `git rev-parse --show-toplevel`.
 
-Даже при resolved-config probe сохраняются только:
+### После version-lock и явного Web-разрешения (0A.2)
+
+Допускается version-specific resolved-config probe, например `opencode --pure debug config`, **только если** source audit подтвердил его read-only/pure semantics для exact версии.
+
+Даже при 0A.2 сохраняются только:
 
 - `permission` / `permissions`;
 - `default_agent`;
@@ -247,18 +275,33 @@ stage0_local_audit_report_<date>.md
 
 ---
 
-## 9. 0A execution
+## 9. 0A execution order
+
+### 0A.1 — первый локальный прогон
 
 Из local checkout `opencode_permissions`:
 
 ```text
 python tools/stage0_inventory.py --project-dir . --output stage0_inventory.json
+```
+
+Вернуть `stage0_inventory.json` и краткий report в ChatGPT Web.
+
+### Между 0A.1 и 0A.2
+
+ChatGPT Web выполняет version-locked 0B source audit хотя бы в части, необходимой для подтверждения resolved-config mechanism.
+
+### 0A.2 — только по отдельному заданию Web
+
+После явного разрешения:
+
+```text
 python tools/stage0_inventory.py --project-dir . --resolved-permissions --output stage0_permissions_inventory.json
 ```
 
-Вторая команда сама пропускает resolved-config probe, если CLI не рекламирует `--pure`.
+Если version-specific audit не подтверждает безопасность такого probe, 0A.2 не выполняется этим способом.
 
-После выполнения агент должен проверить JSON только на структурную корректность и отсутствие secret values; не дополнять недостающие данные чтением auth/log files.
+После выполнения агент проверяет JSON только на структурную корректность и отсутствие secret values; не дополняет недостающие данные чтением auth/log files.
 
 ---
 
@@ -270,10 +313,14 @@ python tools/stage0_inventory.py --project-dir . --resolved-permissions --output
 - script отсутствует или отличается от committed version;
 - `opencode --version` зависает/падает необычным образом;
 - для получения данных требуется install/update/config mutation;
-- `--pure debug config` недоступен;
-- resolved output нельзя безопасно распарсить;
 - обнаружена необходимость читать secret-like file;
 - target state отличается от assumptions задания.
+
+Для 0A.2 дополнительно stop, если:
+
+- Web не дал отдельного разрешения после version-lock;
+- version-specific resolved-config mechanism недоступен;
+- resolved output нельзя безопасно распарсить.
 
 Пропущенный unsafe probe — корректный результат, а не причина обходить ограничение.
 
