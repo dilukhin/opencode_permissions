@@ -1,37 +1,67 @@
 # OpenCode Permissions
 
-Исследовательский проект по созданию более автономной и осмысленной модели разрешений для [OpenCode](https://opencode.ai/).
+Проект по разработке и проверке практической модели разрешений OpenCode: меньше рутинных подтверждений без отказа от технических границ опасных действий.
 
-Цель проекта — сократить число рутинных запросов подтверждения, сохранив технические границы для опасных действий. Безопасные и повторяемые операции должны выполняться автоматически, явно опасные — блокироваться, а пользователь должен привлекаться только при существенной неопределённости.
+## Цель
 
-## Основная модель
+Штатная модель принятия решения:
 
-Проект исследует многоуровневый подход:
+```text
+native deterministic rules
+-> deterministic parser/effect analysis
+-> optional auditor for gray zone
+-> ASK_USER only for residual uncertainty
+```
 
-1. Детерминированный `ALLOW` для простых проверенных операций.
-2. Детерминированный `DENY` для явно опасных действий.
-3. Автоматический разбор и анализ эффектов неоднозначных команд.
-4. Опциональный модель-аудитор для серой зоны без права отменять жёсткий запрет.
-5. `ASK_USER` только для остаточной неопределённости с понятным описанием последствий.
+Жёсткий `DENY` имеет приоритет и не может быть отменён моделью-аудитором. Неизвестный эффект не считается безопасным.
 
-Архитектурным образцом служит проект [agent-safe](https://github.com/dilukhin/agent-safe): короткие правила для агента, технические ограничения, специализированные процедуры, проверка результата и Recovery Mode.
+## Границы проекта
 
-## Документы
+- `opencode_permissions` — permission policy, command/effect classification, approval semantics и эксперименты;
+- [`agent-safe`](https://github.com/dilukhin/agent-safe) — runtime-защита рискованных state-changing действий, verify/recovery;
+- [`opencode_setup`](https://github.com/dilukhin/opencode_setup) — установка, reconciliation и интеграция;
+- [`ssh_relay`](https://github.com/dilukhin/ssh_relay) — удалённый transport/machine contract.
 
-- [`opencode_permissions_project_master_ru.md`](opencode_permissions_project_master_ru.md) — цели, требования, архитектурная гипотеза, этапы работ и критерии приёмки.
-- [`opencode_permissions_findings_ru.md`](opencode_permissions_findings_ru.md) — подтверждённые факты, рабочие гипотезы и открытые вопросы.
-- [`project_instructions_opencode_permissions_ru.md`](project_instructions_opencode_permissions_ru.md) — правила и приоритеты для дальнейшей работы над проектом.
+Проект не должен дублировать runtime-функции этих компонентов без доказанной необходимости.
 
-## Текущий статус
+## Актуальные документы
 
-Проект находится на начальном исследовательском этапе. Следующее действие — read-only аудит установленной версии OpenCode, активной конфигурации и фактических запросов разрешений. Реализацию классификатора и модель-аудитора следует начинать только после фиксации baseline.
+- [`opencode_permissions_project_baseline_ru.md`](opencode_permissions_project_baseline_ru.md) — нормативный persistent baseline: scope, архитектурные инварианты, safety, gates, test strategy и критерии успеха.
+- [`opencode_permissions_chatgpt_web_guide_ru.md`](opencode_permissions_chatgpt_web_guide_ru.md) — правила Web-first разработки, исследований, GitHub workflow и делегирования.
+- [`opencode_permissions_agent_guide_ru.md`](opencode_permissions_agent_guide_ru.md) — подробный operational contract локального агента.
+- [`AGENTS.md`](AGENTS.md) — короткий seed для локального агента.
+- [`chatgpt_project_instructions_seed_ru.md`](chatgpt_project_instructions_seed_ru.md) — переносимая копия коротких ChatGPT Project Instructions; активная копия живёт в настройках проекта ChatGPT.
+- [`github_project_bootstrap.md`](github_project_bootstrap.md) — project-specific GitHub Connector bootstrap.
+- [`opencode_permissions_findings_ru.md`](opencode_permissions_findings_ru.md) — historical/evidence findings; version-sensitive утверждения из него необходимо перепроверять.
 
-## Принципы безопасности
+Старые управляющие документы сохранены в [`docs/archive/`](docs/archive/) только как historical material и не являются нормативными.
 
-- Не разрешать универсальный shell только ради уменьшения числа запросов.
-- Анализировать полную команду, включая конвейеры, перенаправления, вложенные интерпретаторы и удалённый payload.
-- Не передавать модели право отменять детерминированный `DENY`.
-- Проверять отрицательные сценарии только в mock, parser-only режиме или изолированной временной среде.
-- Для рискованных изменений использовать точную цель, атомарное выполнение, проверку результата и план восстановления.
+## Источники истины
 
-Документация проекта ведётся на русском языке.
+Для фактического состояния реализации первым источником является текущий GitHub-репозиторий.
+
+Для изменяемого поведения OpenCode приоритет:
+
+1. фактическая установленная/исследуемая версия;
+2. актуальная официальная документация и при необходимости upstream source/tests этой версии;
+3. project baseline;
+4. остальные устойчивые project docs;
+5. findings/reports/dialogs — только evidence.
+
+Roadmap и design plan сами по себе не доказывают наличие реализации.
+
+## Основные принципы
+
+- Не добиваться автономности через широкий `bash: allow`, blanket auto-approval или prompt-only запреты.
+- Сначала использовать максимально точные native permissions; parser/classifier добавлять только для доказанных gaps.
+- Анализировать всю операцию, включая pipelines, redirects, nested interpreters и remote payload.
+- Опасные negative cases проверять parser-only/mock или в disposable fixtures, а не разрушительным исполнением на рабочей системе.
+- Пользователь привлекается только при существенной остаточной неопределённости и получает описание цели, target, effects, risk и reversibility.
+
+## Текущий этап
+
+Перед реализацией classifier необходимо закрыть **Baseline / audit gate**: подтвердить фактическую семантику исследуемой версии OpenCode, активную конфигурацию и собрать воспроизводимый корпус permission cases и baseline prompts.
+
+Только после этого начинается native-policy work; deterministic classifier и model auditor относятся к последующим gate.
+
+Документация и рабочее общение проекта ведутся преимущественно на русском языке; code identifiers и machine-readable fields — преимущественно на английском.
