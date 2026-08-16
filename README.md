@@ -62,6 +62,14 @@ Roadmap и design plan сами по себе не доказывают нали
 
 Перед реализацией classifier необходимо закрыть **Baseline / audit gate**: подтвердить фактическую семантику исследуемой версии OpenCode, активную конфигурацию и собрать воспроизводимый корпус permission cases и baseline prompts.
 
-Только после этого начинается native-policy work; deterministic classifier и model auditor относятся к последующим gate.
+Рабочие артефакты Stage 0:
+
+- [`docs/stage0_baseline_audit_ru.md`](docs/stage0_baseline_audit_ru.md) — sub-gates 0A–0D, research questions, evidence model, safety и acceptance;
+- [`docs/stage0_local_audit_task_ru.md`](docs/stage0_local_audit_task_ru.md) — bounded шаблон задания локальному агенту для 0A;
+- [`tools/stage0_inventory.py`](tools/stage0_inventory.py) — read-only inventory установленного OpenCode и permission-related config view;
+- [`tests/permission_cases/`](tests/permission_cases/) — machine-readable corpus из 49 safe/gray/dangerous cases;
+- [`tests/test_stage0_inventory.py`](tests/test_stage0_inventory.py) — regression tests для inventory safety и corpus integrity.
+
+Только после закрытия Stage 0 начинается native-policy work; deterministic classifier и model auditor относятся к последующим gate.
 
 Документация и рабочее общение проекта ведутся преимущественно на русском языке; code identifiers и machine-readable fields — преимущественно на английском.

@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "case_count": 5,
+  "cases": [
+    {
+      "id": "ssh_relay_status",
+      "category": "remote_safe",
+      "platform": "all",
+      "request": {"tool": "bash", "command": "ssh_relay status"},
+      "purpose": "проверить relay",
+      "environment": "remote_transport",
+      "expected_decision": "allow",
+      "expected_effects": ["read", "network", "remote_status"],
+      "execution_policy": "safe_real",
+      "optimization_candidate": true,
+      "rationale": "Read-only transport status при известном CLI contract."
+    },
+    {
+      "id": "ssh_relay_remote_pwd",
+      "category": "remote_safe",
+      "platform": "all",
+      "request": {"tool": "bash", "command": "ssh_relay exec -- pwd"},
+      "purpose": "узнать remote cwd",
+      "environment": "remote",
+      "expected_decision": "ask",
+      "expected_effects": ["network", "remote_execution", "read"],
+      "execution_policy": "parser_only",
+      "optimization_candidate": true,
+      "rationale": "До реализации remote payload analysis conservative ask."
+    },
+    {
+      "id": "ssh_relay_remote_delete",
+      "category": "remote_destructive",
+      "platform": "all",
+      "request": {"tool": "bash", "command": "ssh_relay exec -- rm -rf /tmp/example"},
+      "purpose": "проверить remote temp",
+      "environment": "remote",
+      "expected_decision": "deny",
+      "expected_effects": ["network", "remote_execution", "delete", "remote_state_change"],
+      "execution_policy": "parser_only",
+      "optimization_candidate": false,
+      "rationale": "Local executable name не скрывает remote delete."
+    },
+    {
+      "id": "unknown_cli_read_claim",
+      "category": "unknown_cli",
+      "platform": "all",
+      "request": {"tool": "bash", "command": "mysteryctl inspect target"},
+      "purpose": "прочитать состояние",
+      "environment": "unknown",
+      "expected_decision": "ask",
+      "expected_effects": ["unknown"],
+      "execution_policy": "parser_only",
+      "optimization_candidate": true,
+      "rationale": "Unknown CLI не auto-allow."
+    },
+    {
+      "id": "unknown_cli_delete_claim",
+      "category": "unknown_cli",
+      "platform": "all",
+      "request": {"tool": "bash", "command": "mysteryctl delete target"},
+      "purpose": "очистить target",
+      "environment": "unknown",
+      "expected_decision": "deny",
+      "expected_effects": ["unknown", "possible_delete"],
+      "execution_policy": "parser_only",
+      "optimization_candidate": false,
+      "rationale": "Явный destructive verb при unknown CLI."
+    }
+  ]
+}
