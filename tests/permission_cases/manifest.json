@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "purpose": "Stage 0 conservative permission corpus; expected_decision is a safety expectation, not final optimized policy",
+  "decisions": [
+    "allow",
+    "ask",
+    "deny"
+  ],
+  "execution_policies": {
+    "safe_real": "May be observed on a normal trusted workspace if the exact case is naturally required.",
+    "temp_fixture": "May run only in an isolated disposable fixture after version-specific probe design.",
+    "parser_only": "Must not execute on a working system during permission research."
+  },
+  "case_files": [
+    "safe_controlled.json",
+    "shell_system.json",
+    "remote_unknown.json"
+  ],
+  "total_cases": 49
+}
