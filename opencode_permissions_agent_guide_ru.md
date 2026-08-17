@@ -1,7 +1,7 @@
 # OpenCode Permissions — Local Agent Guide
 
 Статус: persistent agent workflow guide  
-Дата: 2026-08-16
+Дата: 2026-08-17
 
 Этот документ расширяет короткий `AGENTS.md`. Локальный агент — bounded executor. Архитектурные решения принимаются в ChatGPT Web и фиксируются в project Sources/repository docs.
 
@@ -13,7 +13,27 @@
 
 `https://github.com/dilukhin/opencode_permissions`
 
-Exact local workspace path должен приходить в задаче. Не угадывай его и не используй другой checkout только потому, что он похож.
+Exact local workspace path должен приходить в задаче или быть указан в локальном `<workspace>/docs/workspace_layout_local.md`. Не угадывай его и не используй другой checkout только потому, что он похож.
+
+Стандартная структура workspace:
+
+```text
+<workspace>/
+  opencode_permissions/   # Git repository
+  evidence/               # raw/local evidence
+  docs/                   # local-only working docs
+  stash/                  # transient working files
+```
+
+Перед созданием output-файла определить его класс:
+
+- version-controlled project artifact -> exact path внутри repository, только если task/design это требует;
+- runtime/audit/probe evidence -> `<workspace>/evidence/<stage>/`;
+- persistent local-only draft/handoff/prompt/machine-specific note -> `<workspace>/docs/`;
+- transient scratch/transfer/intermediate file -> `<workspace>/stash/`;
+- unknown -> оставить вне repository и эскалировать необходимость публикации.
+
+Полные правила: `docs/workspace_evidence_policy_ru.md`.
 
 Перед существенной работой определить и сообщить:
 
@@ -36,7 +56,10 @@ platform/shell
 Всегда прочитать:
 - short task;
 - `AGENTS.md`;
-- `opencode_permissions_project_baseline_ru.md`, если он доступен в workspace/task context.
+- `opencode_permissions_project_baseline_ru.md`, если он доступен в workspace/task context;
+- `docs/workspace_evidence_policy_ru.md`, если задача создаёт local artifacts.
+
+Если существует `<workspace>/docs/workspace_layout_local.md`, использовать его только как machine-specific path map; он не является project architecture/source-of-truth.
 
 Затем загружать только относящиеся к задаче документы.
 
@@ -69,7 +92,7 @@ platform/shell
 
 ## 4. Read-only audit mode
 
-Если задача — audit/baseline, изменения запрещены, кроме явно разрешённых temporary output files.
+Если задача — audit/baseline, изменения запрещены, кроме явно разрешённых temporary/local output files вне repository.
 
 Read-only audit может включать:
 - версии;
@@ -89,6 +112,8 @@ Read-only audit может включать:
 - ставь/обновляй packages;
 - модифицируй services;
 - выполняй destructive negative tests.
+
+Raw audit output должен идти в `<workspace>/evidence/<stage>/`, а не в Git repository.
 
 ---
 
@@ -147,6 +172,8 @@ Destructive/high-risk cases:
 
 Перед edit проверить dirty state и отделить user changes от task changes.
 
+Workspace sibling directories `evidence/`, local `docs/` и `stash/` не являются частью repository. Не переносить их содержимое в Git без explicit publication decision от ChatGPT Web.
+
 Remote GitHub operations выполняй только если задача явно назначает их локальному агенту и это соответствует доступному workflow. Не считай наличие локального `git` доказательством network access.
 
 ---
@@ -176,6 +203,8 @@ Encoding допустим только как технический transport �
 - private keys;
 - secret file contents;
 - authorization headers.
+
+Размещение вне repository не делает secret безопасным для записи. Те же правила действуют для `evidence/`, local `docs/` и `stash/`.
 
 Если secret-like file нужен для проверки, сообщи только факт/path/type, если задача не требует иного безопасного механизма.
 
@@ -228,7 +257,8 @@ Editing alone != completion.
 - требуется выйти за allowed files/scope;
 - specified verification невозможно выполнить;
 - результат mutation unknown;
-- policy/safety layer запрещает действие.
+- policy/safety layer запрещает действие;
+- непонятно, должен ли новый файл быть version-controlled или local-only.
 
 Не компенсировать неопределённость импровизацией.
 
@@ -259,7 +289,10 @@ Unexpected / deviations
 - ...
 
 Files changed
-- ...
+- repository:
+- evidence:
+- local docs:
+- stash:
 
 Git status after work
 - ...
