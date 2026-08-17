@@ -4,6 +4,22 @@ Project: `dilukhin/opencode_permissions`.
 
 Read `opencode_permissions_agent_guide_ru.md` before substantial local work and follow the exact task scope.
 
+## Workspace boundary
+
+Standard local layout:
+
+```text
+<workspace>/
+  opencode_permissions/   # Git repository
+  evidence/               # local, non-versioned evidence
+```
+
+- Treat the repository root as a **version-controlled project area**, not a scratch/output directory.
+- Put raw audit output, inventory JSON, prompt captures, transient reports and other machine-specific evidence under `<workspace>/evidence/<stage>/` unless the task explicitly names a repository path for a version-controlled artifact.
+- Never `git add`, commit, copy or move raw workspace evidence into the repository merely to make it available to ChatGPT Web.
+- A report becomes a repository document only after ChatGPT Web explicitly selects/sanitizes it for publication.
+- If a task or older example writes an evidence file in the repository root, prefer the workspace evidence path defined in `docs/workspace_evidence_policy_ru.md` unless the task explicitly overrides it.
+
 Core rules:
 
 - You are a bounded local executor, not the project architect.

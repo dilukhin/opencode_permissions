@@ -1,0 +1,7 @@
+# Local Stage 0 evidence should live in ../evidence/stage0/.
+# These root-level patterns are defense-in-depth for accidental output.
+/stage0_inventory*.json
+/stage0_permissions_inventory*.json
+/stage0_resolved_permissions*.json
+/stage0_local_audit_report*.md
+/stage0_probe_*.*
