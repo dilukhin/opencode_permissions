@@ -11,14 +11,20 @@ Standard local layout:
 ```text
 <workspace>/
   opencode_permissions/   # Git repository
-  evidence/               # local, non-versioned evidence
+  evidence/               # raw/local evidence
+  docs/                   # local-only working documents
+  stash/                  # transient working files
 ```
 
 - Treat the repository root as a **version-controlled project area**, not a scratch/output directory.
-- Put raw audit output, inventory JSON, prompt captures, transient reports and other machine-specific evidence under `<workspace>/evidence/<stage>/` unless the task explicitly names a repository path for a version-controlled artifact.
-- Never `git add`, commit, copy or move raw workspace evidence into the repository merely to make it available to ChatGPT Web.
-- A report becomes a repository document only after ChatGPT Web explicitly selects/sanitizes it for publication.
-- If a task or older example writes an evidence file in the repository root, prefer the workspace evidence path defined in `docs/workspace_evidence_policy_ru.md` unless the task explicitly overrides it.
+- If `<workspace>/docs/workspace_layout_local.md` exists, read it for the exact machine-specific paths. Do not copy those absolute paths into repository docs unless explicitly required.
+- Put raw audit output, inventory JSON, prompt captures, transient reports and other machine-specific evidence under `<workspace>/evidence/<stage>/`.
+- Put local-only drafts, handoffs, prompts and working notes that are useful across iterations but are not repository artifacts under `<workspace>/docs/`.
+- Put disposable/intermediate working files, transfer artifacts, temporary patches and other non-authoritative scratch material under `<workspace>/stash/`.
+- Never `git add`, commit, copy or move files from `evidence/`, local `docs/` or `stash/` into the repository merely to make them available to ChatGPT Web.
+- A local artifact becomes a repository artifact only after ChatGPT Web explicitly selects/reviews it for publication and gives an exact repository path.
+- If classification is uncertain, keep the file outside the repository and escalate rather than placing it in Git.
+- See `docs/workspace_evidence_policy_ru.md` for the full routing and publication rules.
 
 Core rules:
 
