@@ -33,6 +33,7 @@ native deterministic rules
 - [`chatgpt_project_instructions_seed_ru.md`](chatgpt_project_instructions_seed_ru.md) — переносимая копия коротких ChatGPT Project Instructions; активная копия живёт в настройках проекта ChatGPT.
 - [`github_project_bootstrap.md`](github_project_bootstrap.md) — project-specific GitHub Connector bootstrap.
 - [`opencode_permissions_findings_ru.md`](opencode_permissions_findings_ru.md) — historical/evidence findings; version-sensitive утверждения из него необходимо перепроверять.
+- [`docs/stage0_gate_closure_ru.md`](docs/stage0_gate_closure_ru.md) — formal closure Stage 0 для OpenCode 1.18.18, acceptance matrix и native-policy gaps.
 
 Старые управляющие документы сохранены в [`docs/archive/`](docs/archive/) только как historical material и не являются нормативными.
 
@@ -60,16 +61,19 @@ Roadmap и design plan сами по себе не доказывают нали
 
 ## Текущий этап
 
-Перед реализацией classifier необходимо закрыть **Baseline / audit gate**: подтвердить фактическую семантику исследуемой версии OpenCode, активную конфигурацию и собрать воспроизводимый корпус permission cases и baseline prompts.
+**Stage 0 / Baseline audit gate закрыт** для исследованного OpenCode `1.18.18`. Acceptance и ограничения зафиксированы в [`docs/stage0_gate_closure_ru.md`](docs/stage0_gate_closure_ru.md).
 
-Рабочие артефакты Stage 0:
+Следующий этап — **Native-policy gate**: спроектировать максимально точные version-locked native rules поверх подтверждённой baseline policy и корпуса cases. Нужно определить hard-deny invariants, deterministic safe allow patterns, обязательные `ask`-зоны, external-directory/secret boundaries и ожидаемое снижение prompts.
+
+Deterministic classifier пока **не реализуется** и остаётся `NOT STARTED` до явного закрытия Native-policy gate.
+
+Ключевые Stage 0 артефакты:
 
 - [`docs/stage0_baseline_audit_ru.md`](docs/stage0_baseline_audit_ru.md) — sub-gates 0A–0D, research questions, evidence model, safety и acceptance;
-- [`docs/stage0_local_audit_task_ru.md`](docs/stage0_local_audit_task_ru.md) — bounded шаблон задания локальному агенту для 0A;
-- [`tools/stage0_inventory.py`](tools/stage0_inventory.py) — read-only inventory установленного OpenCode и permission-related config view;
-- [`tests/permission_cases/`](tests/permission_cases/) — machine-readable corpus из 49 safe/gray/dangerous cases;
-- [`tests/test_stage0_inventory.py`](tests/test_stage0_inventory.py) — regression tests для inventory safety и corpus integrity.
-
-Только после закрытия Stage 0 начинается native-policy work; deterministic classifier и model auditor относятся к последующим gate.
+- [`docs/stage0_v1_18_18_source_audit_ru.md`](docs/stage0_v1_18_18_source_audit_ru.md) — version-locked source/test audit OpenCode 1.18.18;
+- [`docs/stage0c_interpreter_parser_closure_ru.md`](docs/stage0c_interpreter_parser_closure_ru.md) — closure nested-interpreter/parser uncertainty;
+- [`docs/stage0_gate_closure_ru.md`](docs/stage0_gate_closure_ru.md) — итоговое решение Stage 0 и native-policy gap inventory;
+- [`tools/stage0_inventory.py`](tools/stage0_inventory.py) — read-only inventory установленного OpenCode;
+- [`tests/permission_cases/`](tests/permission_cases/) — machine-readable corpus из 49 safe/gray/dangerous cases.
 
 Документация и рабочее общение проекта ведутся преимущественно на русском языке; code identifiers и machine-readable fields — преимущественно на английском.
