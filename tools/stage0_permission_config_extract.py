@@ -30,7 +30,6 @@ SECRETISH_MARKERS = (
     "-----begin private key-----",
     "github_pat_",
     "ghp_",
-    "sk-",
 )
 
 
