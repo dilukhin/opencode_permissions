@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Sanitized local permission-config extractor for Stage 0.
 
-The tool reads only explicitly selected OpenCode config files (or the two
-standard user-global config candidates) and emits only permission-related
-fields. Raw config text is never written to output.
+The tool reads only recognized OpenCode config files from explicitly selected
+locations and emits only permission-related fields. Raw config text and
+permission-bearing environment variable values are never written to output.
 
 This is intentionally separate from stage0_inventory.py: the inventory's
 minimal 0A.1 contract remains metadata-only.
@@ -13,12 +13,24 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 from typing import Any
 
-from stage0_inventory import CONFIG_NAMES, extract_permission_view, safe_file_meta
+from stage0_inventory import extract_permission_view, safe_file_meta
 
+
+GLOBAL_CONFIG_NAMES = ("config.json", "opencode.json", "opencode.jsonc")
+MANAGED_CONFIG_NAMES = ("opencode.json", "opencode.jsonc")
+ALLOWED_CONFIG_NAMES = frozenset(GLOBAL_CONFIG_NAMES)
+PERMISSION_ENV_NAMES = (
+    "OPENCODE_CONFIG",
+    "OPENCODE_CONFIG_DIR",
+    "OPENCODE_CONFIG_CONTENT",
+    "OPENCODE_DISABLE_PROJECT_CONFIG",
+    "OPENCODE_PERMISSION",
+)
 
 SECRETISH_MARKERS = (
     "authorization:",
@@ -132,7 +144,7 @@ def secretish(value: Any) -> bool:
 def extract_source(path: Path) -> dict[str, Any]:
     meta = safe_file_meta(path)
     result: dict[str, Any] = {"path": str(path), "metadata": meta}
-    if path.name not in CONFIG_NAMES:
+    if path.name not in ALLOWED_CONFIG_NAMES:
         result.update({"status": "refused", "reason": "unsupported_config_filename"})
         return result
     if not path.exists():
@@ -178,17 +190,36 @@ def extract_source(path: Path) -> dict[str, Any]:
     return result
 
 
+def managed_config_dir() -> Path:
+    override = os.environ.get("OPENCODE_TEST_MANAGED_CONFIG_DIR")
+    if override:
+        return Path(override).expanduser()
+    if sys.platform == "win32":
+        return Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "opencode"
+    if sys.platform == "darwin":
+        return Path("/Library/Application Support/opencode")
+    return Path("/etc/opencode")
+
+
+def permission_environment_presence() -> dict[str, bool]:
+    """Return presence only; never expose environment variable values."""
+    return {name: bool(os.environ.get(name)) for name in PERMISSION_ENV_NAMES}
+
+
 def selected_paths(args: argparse.Namespace) -> list[Path]:
     paths: list[Path] = []
     if args.user_global_defaults:
         base = Path.home() / ".config" / "opencode"
-        paths.extend(base / name for name in CONFIG_NAMES)
+        paths.extend(base / name for name in GLOBAL_CONFIG_NAMES)
+    if args.managed_defaults:
+        base = managed_config_dir()
+        paths.extend(base / name for name in MANAGED_CONFIG_NAMES)
     paths.extend(Path(item).expanduser() for item in (args.config or []))
 
     seen: set[str] = set()
     unique: list[Path] = []
     for path in paths:
-        key = str(path.absolute()).casefold()
+        key = os.path.normcase(os.path.abspath(str(path)))
         if key in seen:
             continue
         seen.add(key)
@@ -198,36 +229,46 @@ def selected_paths(args: argparse.Namespace) -> list[Path]:
 
 def build_output(paths: list[Path]) -> dict[str, Any]:
     return {
-        "schema": 1,
+        "schema": 2,
         "audit_mode": "sanitized_permission_config_extract",
-        "source_order": "argument_order; --user-global-defaults uses opencode.json then opencode.jsonc",
+        "source_order": (
+            "argument selection order; --user-global-defaults uses config.json -> opencode.json -> opencode.jsonc; "
+            "--managed-defaults uses managed opencode.json -> opencode.jsonc after user/global/project/account layers"
+        ),
+        "environment_presence": permission_environment_presence(),
         "sources": [extract_source(path) for path in paths],
         "raw_config_retained": False,
+        "environment_values_retained": False,
     }
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Extract only permission/default-agent fields from selected OpenCode JSON/JSONC config files."
+        description="Extract only permission/default-agent fields from recognized OpenCode JSON/JSONC config files."
     )
     parser.add_argument(
         "--user-global-defaults",
         action="store_true",
-        help="Read the standard ~/.config/opencode/opencode.json and opencode.jsonc candidates.",
+        help="Read standard ~/.config/opencode/config.json, opencode.json and opencode.jsonc in runtime load order.",
+    )
+    parser.add_argument(
+        "--managed-defaults",
+        action="store_true",
+        help="Read standard managed opencode.json/opencode.jsonc candidates for this platform.",
     )
     parser.add_argument(
         "--config",
         action="append",
         default=[],
         metavar="PATH",
-        help="Explicit opencode.json/opencode.jsonc path; may be repeated.",
+        help="Explicit recognized config.json/opencode.json/opencode.jsonc path; may be repeated.",
     )
     parser.add_argument("--output", type=Path, help="Write sanitized JSON here instead of stdout.")
     args = parser.parse_args(argv)
 
     paths = selected_paths(args)
     if not paths:
-        parser.error("select at least one source with --user-global-defaults or --config PATH")
+        parser.error("select at least one source with --user-global-defaults, --managed-defaults or --config PATH")
 
     data = build_output(paths)
     rendered = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
