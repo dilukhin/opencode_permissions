@@ -1,16 +1,13 @@
 # Cross-project integration master plan
 
-Статус: **DRAFT / reviewable plan**.
+Статус: **ACCEPTED design plan**.  
+Gate A закрывается отдельным `cross_project_gate_a_closure_ru.md`. Этот документ задаёт порядок дальнейшей работы и не доказывает наличие implementation.
 
-Этот документ не доказывает наличие реализации и не закрывает ни один implementation gate. Он фиксирует порядок проектирования и проверки стыковки `opencode_permissions`, `agent-safe`, `ssh_relay`, `ScopedKB` и `opencode_setup` до изменения production permission policy.
+## 1. Цель
 
-## 1. Причина и цель
+Стыковка `opencode_permissions`, `agent-safe`, `ssh_relay`, `ScopedKB` и `opencode_setup` должна уменьшить дублирование safety/approval логики и исключить competing authorization writers.
 
-Текущий аудит показал, что несколько проектов потенциально влияют на один и тот же effective OpenCode environment: native permissions, global/project instructions, skills, wrappers и runtime approval semantics. Наиболее существенный текущий конфликт — `agent-safe` способен устанавливать собственные OpenCode permission defaults и принимать caller-supplied `--approved`, тогда как `opencode_permissions` должен стать каноническим владельцем authorization semantics.
-
-Цель интеграции — получить систему, где каждый проект имеет один явно ограниченный класс ответственности и не может незаметно расширить полномочия соседнего проекта.
-
-Целевая логика:
+Целевая модель:
 
 ```text
 ScopedKB -> contextual facts
@@ -29,422 +26,245 @@ opencode_setup -> install/reconcile managed artifacts всех владельц�
 
 ## 2. Каноническое владение
 
-### 2.1 `opencode_permissions`
+| Project | Каноническая ответственность |
+|---|---|
+| `opencode_permissions` | authorization policy, `ALLOW/ASK_USER/DENY`, hard deny, approval semantics, normalized operation/effects |
+| `agent-safe` | execution safety: target, expected state, preconditions, checkpoint, verify, recovery |
+| `ssh_relay` | remote transport, jobs/transfers, remote machine outcome |
+| `ScopedKB` | scoped contextual facts, provenance, freshness/sensitivity |
+| `opencode_setup` | installation, repository ownership, live environment reconciliation, migration и verification |
 
-Единственный канонический владелец:
+`opencode_setup` обязан включить `dilukhin/opencode_permissions` как **first-class managed integration target/dependency**, аналогично другим managed source repositories. Он устанавливает/обновляет checkout и deploys canonical permission artifacts, но не меняет их authorization semantics.
 
-- `ALLOW / ASK_USER / DENY`;
-- hard-deny invariants;
-- safe auto-allow families;
-- обязательных ASK-зон;
-- interpretation command/effect semantics для authorization;
-- approval context и approval semantics;
-- scope/lifetime authorization;
-- policy version и decision evidence.
-
-### 2.2 `agent-safe`
-
-Владелец execution safety уже авторизованной state-changing operation:
-
-- target;
-- expected state;
-- checkpoint/recovery feasibility;
-- execution preconditions;
-- smallest mutation;
-- verify;
-- recovery/incident handling.
-
-`agent-safe` может сузить разрешённое действие через `RUNTIME_REJECT`, но не может повысить authorization или самостоятельно заменить `ASK_USER` на `ALLOW`.
-
-### 2.3 `ssh_relay`
-
-Владелец transport и remote machine outcome:
-
-- delivery/session identity;
-- job lifecycle;
-- transfer semantics;
-- reconnect/status;
-- `started/running/succeeded/failed/stopped/unknown`.
-
-Transport metadata вроде `--risky` не является authorization decision.
-
-### 2.4 `ScopedKB`
-
-Владелец scoped contextual facts и provenance. Он может поставлять проверенные attributes, но не `allow`, `deny`, `ask_user`, `approval_required` и другие authorization decisions.
-
-### 2.5 `opencode_setup`
-
-Единственный reconciler shared live OpenCode environment. Он устанавливает артефакты их канонических владельцев, обнаруживает legacy/conflicting writers и не создаёт собственную permission policy.
-
-## 3. Обязательные архитектурные invariants
+## 3. Архитектурные invariants
 
 1. **Single authorization owner.** Только `opencode_permissions` определяет `ALLOW / ASK_USER / DENY`.
-2. **No self-approval.** Model-controlled input не может сам служить достаточным доказательством пользовательского approval.
-3. **Exact binding.** Authorization должен быть связан с конкретной нормализованной operation/target/effects; замена payload после approval недопустима.
-4. **Runtime may narrow, never broaden.** `agent-safe` может остановить разрешённое действие, но не разрешить запрещённое.
+2. **No self-approval.** Model-controlled input, включая CLI flag `--approved`, не является достаточным integrated proof approval.
+3. **Exact binding.** Authorization связан с конкретной normalized operation/target/effects; payload substitution запрещён.
+4. **Runtime may narrow, never broaden.** `agent-safe` может вернуть `RUNTIME_REJECT`, но не повысить authorization.
 5. **Transport has no authority.** `ssh_relay` не принимает authorization decisions.
-6. **Context has no authority.** ScopedKB предоставляет facts, а не policy decisions.
-7. **Prompt text is not a security boundary.** `AGENTS.md`, skills и model instructions не заменяют технический permission layer.
-8. **Single live reconciler.** Shared OpenCode environment изменяет `opencode_setup`; другие проекты публикуют собственные source artifacts/contracts.
-9. **Fail closed on ownership conflict.** Unknown или локально модифицированный conflicting artifact не удаляется/перезаписывается blind action.
-10. **Unknown effect != safe.** Неопределённость в effects/context не может автоматически ослабить решение.
-11. **Hard DENY precedence.** Hard policy deny не отменяется runtime layer, auditor, ScopedKB fact или transport metadata.
+6. **Context has no authority.** ScopedKB поставляет facts, не permission decisions.
+7. **Prompt text is not a security boundary.** `AGENTS.md`, skills и prompts не заменяют technical policy.
+8. **Single live reconciler.** Shared OpenCode managed environment reconciles `opencode_setup`.
+9. **Fail closed on ownership conflict.** Unknown/locally modified artifacts не удаляются и не перезаписываются blind action.
+10. **Unknown effect != safe.** Неопределённость не может автоматически ослаблять решение.
+11. **Hard DENY precedence.** Hard deny не отменяется auditor/runtime/context/transport layer.
+12. **Generic wrapper != safe payload.** `safe`, `python -m agent_safe`, `ssh_relay`, interpreters и другие wrappers не получают blanket trust только по имени внешней команды.
 
-## 4. Межпроектные контракты v1
+## 4. Принятые design decisions Gate A
 
-До реализации необходимо спроектировать reviewable schemas/semantics следующих logical contracts. Конкретный wire format пока не фиксируется.
+### 4.1 Канонический cross-project contract
 
-### 4.1 `ContextFacts`
+Канонический контракт живёт в `opencode_permissions`. Соседние проекты фиксируют только свои локальные обязанности и ссылку/совместимость с контрактом, чтобы не создавать semantic drift.
 
-Минимально должны быть определены:
+### 4.2 Controlled execution path
 
-- fact/value;
-- scope;
-- provenance;
-- freshness/observed_at;
-- confidence/status (`verified`, `observed`, `stale`, `unknown` или согласованный эквивалент);
-- sensitivity classification, если требуется.
+Generic state-changing/wrapper operations должны проходить controlled path. Native direct path предназначен для детерминированно безопасных direct operations и hard-deny families.
 
-Критерий: missing/stale/weaker fact не делает authorization более permissive без явного policy rule, допускающего именно такой уровень evidence.
+### 4.3 Двухфазный preflight
 
-### 4.2 `NormalizedOperation`
+До ASK допустим только гарантированно read-only preflight для target/reversibility/verify information. После authorization runtime-sensitive preconditions проверяются повторно непосредственно перед mutation.
 
-Должен описывать именно действие, которое будет авторизовано:
+### 4.4 Режимы `agent-safe`
 
-- semantic operation/purpose;
-- target;
-- channel (`local`, `remote`, etc.);
-- normalized payload/arguments либо их canonical representation;
-- expected effects;
-- operation identity/hash для binding.
+Целевая модель различает:
 
-### 4.3 `AuthorizationDecision`
+- `integrated`: authorization приходит только от `opencode_permissions`; собственный permission writer и caller-controlled approval proof не используются;
+- `standalone/manual`: compatibility mode возможен только как явно изолированный режим, не меняющий managed integrated environment.
 
-Минимум:
+### 4.5 Authorization handoff
 
-- `ALLOW | ASK_USER | DENY`;
-- rule/reason;
-- policy version;
-- normalized operation identity;
-- evidence/context dependencies;
-- hard-deny marker там, где применимо.
+Конкретный wire mechanism пока не выбран. Обязательное требование: authorization evidence должно быть non-forgeable через model-controlled command/payload channel и exact-bound к фактической operation.
 
-### 4.4 `AuthorizationGrant`
+## 5. Логические межпроектные contracts
 
-Нужен только для перехода от decision к controlled execution. Требования:
+До implementation должны быть стабилизированы:
 
-- non-forgeability через model-controlled command channel;
-- exact binding к operation/target/effects;
-- ограниченный scope;
-- lifetime/expiry или single-use semantics;
-- provenance (`policy` или подтверждённый `user`);
-- защита от payload substitution/replay согласно принятой threat model.
+- `ContextFacts`;
+- `NormalizedOperation`;
+- `AuthorizationDecision`;
+- `AuthorizationGrant`;
+- `ExecutionPreflight`;
+- `ExecutionResult`;
+- `RemoteOutcome`;
+- `ManagedArtifactOwnership`.
 
-Обычный caller-supplied Boolean вроде `--approved` не считается достаточным integrated authorization proof.
+Их normative semantics заданы в `cross_project_integration_contract_v1_ru.md`.
 
-Конкретная реализация — capability handle, trusted bridge, IPC, broker token, custom OpenCode tool или другой механизм — отдельное решение следующего design slice.
+## 6. Этап A — Cross-project contract gate
 
-### 4.5 `ExecutionPreflight`
+Статус: **CLOSED** после фиксации closure document.
 
-`agent-safe` должен иметь возможность до mutation вернуть read-only результат:
-
-- executable/not executable;
-- target resolution;
-- reversibility/checkpoint capability;
-- verify method;
-- recovery constraints;
-- runtime safety blockers.
-
-Preflight не принимает authorization decision.
-
-### 4.6 `ExecutionResult`
-
-Минимальные результаты:
-
-- `DONE`;
-- `RUNTIME_REJECT`;
-- `UNEXPECTED`;
-- фактический observed state/evidence;
-- verify result;
-- recovery status, если применимо.
-
-### 4.7 `RemoteOutcome`
-
-`ssh_relay` возвращает machine/transport outcome без authorization semantics:
-
-- correlation/job identity;
-- `started/running/succeeded/failed/stopped/unknown`;
-- observable transport evidence;
-- terminal/non-terminal semantics.
-
-### 4.8 `ManagedArtifactOwnership`
-
-Для reconciliation должны быть определены:
-
-- artifact/path/semantic section;
-- canonical owner;
-- managed scope;
-- expected source/version;
-- legacy signatures;
-- modification/conflict detection;
-- migration/removal policy.
-
-## 5. Этап A — Cross-project contract gate
-
-Работа ведётся в архитектурном диалоге `opencode_permissions`.
-
-### Deliverables
+Deliverables:
 
 - этот master plan;
-- отдельный `cross_project_integration_contract_v1_ru.md` после review;
-- collision matrix по effective permission channels;
-- unresolved design decisions register;
-- acceptance matrix для последующих project gates.
+- `cross_project_integration_contract_v1_ru.md`;
+- `cross_project_permission_collision_matrix_ru.md`;
+- `cross_project_unresolved_decisions_ru.md`;
+- `cross_project_acceptance_matrix_ru.md`;
+- `opencode_setup_opencode_permissions_target_ru.md`;
+- `cross_project_gate_a_closure_ru.md`.
 
-### Решения, которые должны быть приняты
+Gate A не меняет production permission policy/runtime.
 
-- точная граница PDP/PEP между `opencode_permissions` и `agent-safe`;
-- требования к authorization handoff/non-forgeability;
-- preflight до/после ASK и какие поля preflight разрешено показывать пользователю;
-- ownership model для live config;
-- migration compatibility policy для standalone `agent-safe`.
+## 7. Этап B — `opencode_permissions`
 
-### Gate A acceptance
+Отдельный диалог проекта.
 
-Gate закрыт только если:
+Scope:
 
-- каждый authorization-sensitive artifact имеет одного канонического владельца;
-- ни один интерфейс не требует model-controlled self-approval;
-- wrapper/remote paths не могут считаться безопасными только по имени внешней команды;
-- unresolved implementation choices явно отделены от обязательных invariants;
-- не требуется изменение production policy для доказательства design closure.
+- Native-policy gate с учётом wrapper/cross-project boundaries;
+- `NormalizedOperation`, `AuthorizationDecision`, `AuthorizationGrant` contract refinement;
+- exact binding/lifetime/scope;
+- исследование trusted controlled-operation integration primitives OpenCode 1.18.18;
+- canonical deployable permission artifact/interface contract для будущего `opencode_setup`;
+- расширение corpus wrapper/remote/approval-substitution cases;
+- hard-deny invariants, deterministic native allow families, mandatory ASK zones, secret/external-directory boundaries;
+- prompt-reduction metrics.
 
-## 6. Этап B — `opencode_permissions`
+Не реализовывать deterministic classifier/auditor до явного закрытия Native-policy gate.
 
-Отдельный диалог и отдельный project gate.
-
-### Scope
-
-- закрепить ownership authorization semantics;
-- спроектировать `NormalizedOperation`, `AuthorizationDecision`, `AuthorizationGrant`;
-- определить exact binding и lifetime/scope;
-- определить trusted controlled-operation integration point;
-- расширить Native-policy acceptance wrapper/transport cases;
-- определить native rules для direct safe path с учётом wrapper collision;
-- не реализовывать deterministic classifier/auditor до закрытия Native-policy gate.
-
-### Обязательные regression/corpus families
+Обязательные families:
 
 - `safe exec-risky ...`;
 - `python -m agent_safe exec-risky ...`;
-- variants с caller-provided `--approved`;
-- nested interpreter/wrapper payload;
-- `ssh_relay` remote payload;
-- argument/payload substitution после approval;
+- caller-controlled `--approved`;
+- interpreter/wrapper nested payload;
+- `ssh_relay` remote payload и transfer effects;
+- payload substitution/replay;
 - unknown effect/context;
-- hard DENY внутри wrapper.
+- hard deny внутри wrapper.
 
-Проверки только parser-only/mocks/synthetic fixtures; destructive validation запрещён.
+Проверки parser-only/mocks/synthetic fixtures; destructive validation запрещён.
 
-### Gate B acceptance
+## 8. Этап C — `agent-safe`
 
-- native/direct policy не использует blanket wrapper allow как доказательство безопасности payload;
-- authorization contract reviewable и технически предполагает non-forgeable handoff;
-- hard-deny semantics сохраняются на nested/controlled paths;
-- corpus и метрики prompt reduction учитывают wrappers;
-- classifier/auditor остаются `NOT STARTED`, если Native-policy gate ещё не закрыт.
-
-## 7. Этап C — `agent-safe`
-
-Отдельный диалог проекта после Gate B design closure.
-
-### Scope
+После стабилизации authorization contract B:
 
 - отделить authorization от execution safety;
-- заменить integrated reliance на caller-supplied `--approved` на согласованный authorization handoff;
-- сохранить standalone/manual compatibility только как явно отделённый режим, если он нужен;
-- пересмотреть `risk-gate`/`safe-cli`: routing в controlled execution path не должен означать самостоятельный `ASK_USER`;
-- убрать ownership production OpenCode permission policy из integrated bootstrap;
-- определить `ExecutionPreflight`/`ExecutionResult`;
-- сохранить checkpoint/verify/recovery/hard runtime blockers.
+- убрать integrated reliance на caller-supplied approval Boolean;
+- реализовать/поддержать agreed authorization handoff;
+- развести `POLICY_DENY` и `RUNTIME_REJECT`;
+- пересмотреть `risk-gate`/`safe-cli` как routing, не второй PDP;
+- вывести independent production permission bootstrap из integrated ownership;
+- сохранить checkpoint/verify/recovery/runtime blockers;
+- изолировать standalone compatibility mode.
 
-### Gate C acceptance
+Gate C: `agent-safe` не способен повысить upstream authorization или выполнить mismatched operation по чужому grant.
 
-- `agent-safe` не может повысить upstream authorization;
-- подделка CLI flag не создаёт integrated authorization;
-- mismatch между grant и фактической operation блокируется;
-- runtime preflight может reject разрешённую operation;
-- standalone mode, если сохранён, явно изолирован и не конфликтует с managed integrated mode;
-- tests покрывают authorization mismatch без destructive execution.
+## 9. Этап D — `ssh_relay`
 
-## 8. Этап D — `ssh_relay`
-
-Отдельный короткий диалог после определения controlled execution contract.
-
-### Scope
-
-- закрепить transport-only ownership;
+- закрепить transport-only boundary;
 - формализовать `RemoteOutcome`;
-- проверить `--risky`/прочие labels на отсутствие approval semantics;
-- определить correlation между authorization/execution/job identity без передачи transport'у права authorization;
-- regression: dangerous remote payload нельзя скрыть за blanket allowance relay wrapper.
+- `--risky` не является approval evidence;
+- связать authorization/execution/job identity только для correlation;
+- remote payload остаётся видимым upstream authorization;
+- `unknown` не считается success и не вызывает blind retry.
 
-### Gate D acceptance
+## 10. Этап E — `ScopedKB`
 
-- relay не возвращает и не трактует `ALLOW/ASK/DENY`;
-- `unknown` outcome не считается success и не вызывает blind retry;
-- remote payload остаётся видимым upstream semantic analysis/controlled path;
-- transport metadata не ослабляет policy.
-
-## 9. Этап E — `ScopedKB`
-
-Отдельный диалог. Реализация может быть отложена, если текущий код ещё не производит такой context.
-
-### Scope
-
-- определить `ContextFacts` и provenance/freshness semantics;
-- запретить будущим adapters/startup-context generators создавать authorization policy;
+- определить `ContextFacts`/provenance/freshness semantics;
+- запретить generated authorization policy;
 - определить sensitivity/redaction boundary;
-- определить fail-safe consumption stale/unknown context.
+- stale/missing/weaker context не должен ослаблять policy.
 
-### Gate E acceptance
+Implementation может быть deferred, если текущий ScopedKB ещё не производит соответствующий runtime context.
 
-- ScopedKB является PIP/context provider, не PDP;
-- generated context не содержит нормативных permission decisions;
-- stale/missing facts не ослабляют policy;
-- provenance достаточен для policy rules, которые на него ссылаются.
+## 11. Этап F — `opencode_setup`
 
-## 10. Этап F — `opencode_setup`
+После стабилизации artifacts/contracts B–E:
 
-Отдельный диалог после стабилизации артефактов B–E.
+1. добавить `opencode_permissions` в managed dependency/target model (`config_data.json` и orchestration);
+2. установить/обновлять managed checkout по существующей non-destructive repository reconciliation policy;
+3. определить branch/version policy и canonical checkout path;
+4. получать deployable authorization artifacts только из `opencode_permissions`;
+5. deploy/reconcile их без самостоятельной semantic modification;
+6. inventory all version-relevant effective permission channels;
+7. обнаруживать legacy `agent-safe` permission/bootstrap artifacts;
+8. known exact legacy -> explicit migrate/remove;
+9. modified/unknown/user-owned -> preserve + conflict;
+10. verify фактический effective end state;
+11. покрыть Windows/Linux validators и idempotent fixtures.
 
-### Scope
-
-- стать единственным reconciler shared live OpenCode environment;
-- определить `ManagedArtifactOwnership` manifest/registry;
-- устанавливать policy artifact от `opencode_permissions` без самостоятельного изменения смысла;
-- устанавливать skills/runtime artifacts `agent-safe` и `ssh_relay`;
-- обнаруживать legacy permission writers, включая старый `agent-safe` bootstrap config;
-- учитывать одновременно возможные `opencode.json` и `opencode.jsonc`, project/global layers и другие version-relevant effective channels;
-- known exact legacy -> migrate/remove;
-- locally modified/unknown -> preserve + conflict, без blind delete;
-- verify actual effective state после reconciliation.
-
-### Gate F acceptance
-
-На synthetic fixtures:
+Acceptance fixtures:
 
 ```text
-old supported state A -> desired C
-old supported state B -> desired C
-partial/mixed state -> desired C
-C -> C
+supported old A -> desired C
+supported old B -> desired C
+partial/mixed   -> desired C
+C               -> C
 ```
 
-при этом:
+Успешный exit code без end-state verification недостаточен.
 
-- unknown/user-owned artifacts сохраняются;
-- известные obsolete managed artifacts не продолжают влиять на effective permission policy;
-- повторный deploy идемпотентен в managed scope;
-- успешный exit code без end-state verification недостаточен.
+## 12. Этап G — Cross-project integration acceptance
 
-## 11. Этап G — Cross-project integration acceptance
+Проверяется система целиком на synthetic/non-destructive scenarios:
 
-После project-specific gates проводится отдельный integration dialogue/run.
+- direct deterministic-safe -> native ALLOW;
+- hard-dangerous -> DENY до mutation;
+- controlled mutation -> authorization -> agent-safe -> verify;
+- forged approval marker -> no authorization;
+- grant/payload mismatch -> reject;
+- dangerous `safe`/`agent_safe` wrapper payload -> no blanket allow;
+- dangerous `ssh_relay` payload -> no blanket allow;
+- runtime preflight failure after ALLOW -> `RUNTIME_REJECT`;
+- remote `unknown` -> diagnosis/recovery, no blind retry;
+- stale ScopedKB fact -> no policy weakening;
+- mixed legacy config -> reconciliation to desired managed state;
+- unknown modified artifact -> preserve/conflict;
+- hard deny cannot be overridden.
 
-### Обязательная acceptance matrix
-
-1. Direct deterministic-safe operation -> native `ALLOW` -> execute.
-2. Controlled risky operation -> decision/grant -> `agent-safe` -> verify.
-3. Hard-dangerous operation -> `DENY` до mutation.
-4. Forged/caller-supplied approval marker -> не создаёт authorization.
-5. Grant/payload mismatch -> reject.
-6. Dangerous nested command за `safe` wrapper -> не получает blanket allow.
-7. Dangerous remote payload за `ssh_relay` -> не получает blanket allow.
-8. Runtime preflight failure после upstream ALLOW -> `RUNTIME_REJECT`.
-9. Remote outcome `unknown` -> read-only diagnosis/recovery flow, не blind retry.
-10. Stale/unknown ScopedKB fact -> не ослабляет authorization.
-11. Mixed legacy OpenCode config -> `opencode_setup` приводит managed scope к одному desired state.
-12. Unknown locally modified artifact -> preserve/conflict, не blind overwrite/delete.
-13. Hard DENY не отменяется auditor/runtime/context/transport layer.
-14. Approval относится только к согласованной normalized operation и не переносится на подменённый payload.
-
-### Gate G closure
-
-Integration gate закрывается только при наличии evidence по всем применимым строкам matrix и явном списке deferred/non-applicable cases.
-
-## 12. Зависимости и рекомендуемый порядок
+## 13. Зависимости
 
 ```text
-A  Cross-project contract
+A  Cross-project contract       CLOSED
 |
 v
-B  opencode_permissions authorization/native design
+B  opencode_permissions
 |
 v
-C  agent-safe execution integration
-|
-+------> D  ssh_relay transport boundary
-|
-+------> E  ScopedKB context boundary
-|          (может быть design-only/deferred)
-\----------/
-     |
-     v
-F  opencode_setup reconciliation
-     |
-     v
+C  agent-safe
+|\
+| +--> D ssh_relay
+| +--> E ScopedKB
+|      /
++-----+
+   |
+   v
+F  opencode_setup
+   |
+   v
 G  integration acceptance
 ```
 
-`D` и `E` могут частично выполняться параллельно после стабилизации интерфейсов B/C, но implementation changes не должны опережать согласованный contract.
+D/E могут частично идти параллельно после стабилизации B/C interfaces, но implementation не должен опережать contract.
 
-## 13. Организация диалогов
+## 14. Организация диалогов
 
-- текущий архитектурный диалог: A и coordination;
-- отдельный диалог `opencode_permissions`: B;
-- отдельный диалог `agent-safe`: C;
-- отдельный диалог `ssh_relay`: D;
-- отдельный диалог `ScopedKB`: E;
-- отдельный диалог `opencode_setup`: F;
+- текущий архитектурный диалог: Gate A/coordination;
+- отдельный `opencode_permissions`: B;
+- отдельный `agent-safe`: C;
+- отдельный `ssh_relay`: D;
+- отдельный `ScopedKB`: E;
+- отдельный `opencode_setup`: F;
 - свежий integration dialogue: G.
 
-В каждом project dialogue сначала проверяется актуальный default branch/implementation через GitHub Connector; cross-project plan является design input, но не заменяет source of truth конкретного репозитория.
+В каждом project dialogue сначала проверять актуальный default branch через GitHub Connector.
 
-## 14. Stop/escalation conditions
+## 15. Stop/escalation conditions
 
-Работа по affected path останавливается и возвращается к архитектурному контракту, если обнаружено хотя бы одно:
+Вернуться к cross-project contract, если обнаружено:
 
 - второй live writer effective authorization policy;
-- необходимость доверять model-controlled `--approved`/эквиваленту;
-- wrapper, скрывающий payload от semantic authorization;
-- невозможность связать grant с фактической operation;
-- неизвестный ownership live artifact, который требуется удалить/переписать для продолжения;
-- version-sensitive OpenCode behavior, не подтверждённый для целевой версии;
-- proposal, при котором prompt/instruction становится единственной safety boundary;
-- изменение одного проекта требует переноса runtime responsibility другого проекта без отдельного архитектурного решения.
+- необходимость доверять model-controlled approval marker;
+- wrapper, скрывающий payload от authorization;
+- невозможность exact binding grant к operation;
+- unknown ownership artifact, который требуется destructive изменить;
+- неподтверждённое version-sensitive OpenCode behavior;
+- prompt/instruction как единственная safety boundary;
+- перенос runtime responsibility между проектами без отдельного решения.
 
-## 15. Нерешённые design decisions
+## 16. Следующий шаг
 
-До implementation должны быть отдельно решены, но сейчас не фиксируются как факт:
-
-1. Конкретная форма authorization handoff: trusted in-process bridge, custom OpenCode tool, capability handle, IPC/broker или другой механизм.
-2. Нужно ли выполнять read-only `agent-safe` preflight до ASK, чтобы показать пользователю reversibility/verification, и какие поля являются trustworthy.
-3. Single-use против short-lived scoped authorization grants.
-4. Формат ownership manifest для `opencode_setup`.
-5. Compatibility lifecycle старого `agent-safe opencode-bootstrap`.
-6. Способ versioning/correlation `NormalizedOperation` между permission layer и execution layer.
-7. Минимальный `ContextFacts` schema и требования к provenance/freshness.
-8. Где физически живёт canonical cross-project contract после стабилизации и какие части дублируются только ссылками в соседних repos.
-
-## 16. Ближайшее действие
-
-До перехода в отдельный project dialogue закрыть **Gate A design review**:
-
-1. проверить этот master plan;
-2. принять/исправить ownership и invariants;
-3. разработать concrete `cross_project_integration_contract_v1_ru.md` с logical schemas/state transitions/threat boundaries;
-4. составить collision matrix текущих и legacy effective permission channels;
-5. подготовить starter/handoff для этапа B (`opencode_permissions` Native-policy integration design).
-
-До этого production permission policy, deterministic classifier, auditor и runtime approval mechanisms не изменять.
+Перейти в отдельный диалог этапа B. Starter: `next_dialog_stage_b_native_policy_integration_starter_ru.md`.
