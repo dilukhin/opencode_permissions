@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "profile_id": "opencode-1.18.18-gate-b",
+  "opencode_version": "1.18.18",
+  "upstream": {
+    "repository": "anomalyco/opencode",
+    "tag": "v1.18.18",
+    "commit": "31406ccc51b4bd2a4e1e086b2bcaa5f7f804f26d"
+  },
+  "overall_status": "SOURCE_REVALIDATED",
+  "platform_status": {
+    "linux": "SOURCE_REVALIDATED",
+    "windows": "SOURCE_REVALIDATED"
+  },
+  "historical_stage0": {
+    "status": "CLOSED",
+    "runtime_version": "1.18.18",
+    "evidence": "docs/stage0_gate_closure_ru.md"
+  },
+  "gate_b_runtime_evidence": null,
+  "critical_fingerprints": {
+    "permission_service": {"path": "packages/opencode/src/permission/index.ts", "blob": "2e27ff2424dbb000ea9ed7f73471769716ba40a1"},
+    "tool_context": {"path": "packages/opencode/src/tool/tool.ts", "blob": "e5e7802858ca5cd2250f8f34c4725a25c7a3221d"},
+    "shell_tool": {"path": "packages/opencode/src/tool/shell.ts", "blob": "1e4423e017740617bc6e0df36ad9dcdb0197bccb"},
+    "permission_http": {"path": "packages/opencode/src/server/routes/instance/httpapi/groups/permission.ts", "blob": "79959db499bd12a359ac84a9a189faebc84c016e"},
+    "permission_http_auth": {"path": "packages/opencode/src/server/routes/instance/httpapi/middleware/authorization.ts", "blob": "61ce39ad39e0643758861e82220953399bb6c824"}
+  },
+  "verified_semantics": {
+    "last_matching_rule_wins": true,
+    "implicit_no_match": "ask",
+    "shell_permission_key": "bash",
+    "shell_tree_sitter_scan": true,
+    "redirected_statement_in_pattern": true,
+    "external_directory_separate_permission": true
+  },
+  "deployable": false,
+  "policy_artifact_id": null,
+  "blocking_reasons": [
+    "HISTORICAL_BASELINE_NOT_CURRENT_GATE_B_RUNTIME_TARGET",
+    "CANONICAL_DEPLOYABLE_ARTIFACT_NOT_BUILT",
+    "FINAL_GATE_B_CLOSURE_PENDING"
+  ],
+  "notes": [
+    "Stage 0 historical closure is immutable evidence and does not imply Gate B broker/runtime revalidation.",
+    "This profile exists to represent the baseline in the exact-version compatibility registry."
+  ]
+}
