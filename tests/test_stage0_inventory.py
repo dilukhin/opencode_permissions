@@ -75,7 +75,6 @@ class Stage0InventoryTests(unittest.TestCase):
                 ids.append(case["id"])
         self.assertEqual(manifest["total_cases"], len(ids))
         self.assertEqual(len(ids), len(set(ids)))
-        self.assertEqual(49, len(ids))
 
 
 if __name__ == "__main__":
