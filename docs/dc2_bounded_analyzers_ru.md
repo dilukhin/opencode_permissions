@@ -1,6 +1,6 @@
 # DC-2 — bounded deterministic analyzers
 
-Статус: **IMPLEMENTATION CANDIDATE / CI REQUIRED**  
+Статус: **PASS**  
 Дата: 2026-09-03
 
 ## 1. Scope
@@ -140,7 +140,7 @@ Sound safe promotions из native ASK в этом synthetic projection:
 
 ## 5. Safety metrics
 
-Regression требует:
+Regression требует и CI подтвердил:
 
 ```text
 unsafe_auto_allow = 0
@@ -153,7 +153,7 @@ identityless_auto_allow = 0
 sound_safe_promotions >= 7   # synthetic DC-2 projection only
 ```
 
-Каждый classifier ALLOW должен иметь valid `operation_identity` через DC-1 validation.
+Каждый classifier ALLOW имеет valid `operation_identity` через DC-1 validation.
 
 ## 6. Deliberate non-claims
 
@@ -166,8 +166,17 @@ DC-2 не доказывает:
 - remote/wrapper recursive payload adapter (DC-3);
 - live OpenCode deployment.
 
-## 7. Acceptance
+## 7. Acceptance evidence
 
-DC-2 candidate PASS только после Linux/Windows matrix, всех 27 projection cases, metrics above и сохранения Gate B/DC-0/DC-1 regressions.
+DC-2 PASS подтверждён GitHub Actions run 65 на head `f5e364d270731995dbc93855265414c4abf6ea39`:
 
-После PASS следующий repository-only slice — DC-3 wrapper/remote recursive extraction. Реальный OpenCode parser adapter остаётся DC-4 и может потребовать bounded local-agent runtime probe.
+```text
+ubuntu-latest / Python 3.11   PASS
+ubuntu-latest / Python 3.14   PASS
+windows-latest / Python 3.11  PASS
+windows-latest / Python 3.14  PASS
+```
+
+Все 27 projection cases, safety metrics и Gate B/DC-0/DC-1 regressions прошли. PR #18 merged; implementation присутствует в `main`.
+
+Следующий repository-only slice — DC-3 wrapper/remote recursive extraction. Реальный OpenCode parser adapter остаётся DC-4 и может потребовать bounded local-agent runtime probe.

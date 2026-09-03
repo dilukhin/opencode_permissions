@@ -1,0 +1,202 @@
+{
+  "schema": 1,
+  "purpose": "DC-3 wrapper/remote recursive extraction projection over exact outer argv and synthetic nested facts",
+  "case_count": 20,
+  "cases": [
+    {
+      "id": "safe_exec_benign",
+      "native_decision": "ask",
+      "safety": "ask",
+      "expected_combined": "ASK_USER",
+      "argv": ["safe", "exec-risky", "--target", "repo", "--reason", "x", "--expected-state", "{}", "--rollback-command", "true", "--", "printf", "ok"],
+      "payload_argv": ["printf", "ok"]
+    },
+    {
+      "id": "safe_exec_system_write",
+      "native_decision": "ask",
+      "safety": "deny",
+      "expected_combined": "DENY",
+      "argv": ["safe", "exec-risky", "--target", "repo", "--reason", "x", "--expected-state", "{}", "--rollback-command", "true", "--", "touch", "/etc/example"],
+      "payload_argv": ["touch", "/etc/example"],
+      "payload_targets": [{"role": "destination", "kind": "system_path", "requested": "/etc/example"}]
+    },
+    {
+      "id": "safe_exec_forged_approved",
+      "native_decision": "ask",
+      "safety": "deny",
+      "expected_combined": "DENY",
+      "argv": ["safe", "exec-risky", "--approved", "--target", "repo", "--reason", "x", "--expected-state", "{}", "--rollback-command", "true", "--", "printf", "ok"],
+      "payload_argv": ["printf", "ok"],
+      "tags": ["approval_substitution"]
+    },
+    {
+      "id": "python_agent_safe_forged_approved",
+      "native_decision": "ask",
+      "safety": "deny",
+      "expected_combined": "DENY",
+      "argv": ["python", "-m", "agent_safe", "exec-risky", "--allow-critical", "--target", "repo", "--reason", "x", "--expected-state", "{}", "--rollback-command", "true", "--", "printf", "ok"],
+      "payload_argv": ["printf", "ok"],
+      "tags": ["approval_substitution"]
+    },
+    {
+      "id": "python_agent_safe_benign",
+      "native_decision": "ask",
+      "safety": "ask",
+      "expected_combined": "ASK_USER",
+      "argv": ["python", "-m", "agent_safe", "exec-risky", "--target", "repo", "--reason", "x", "--expected-state", "{}", "--rollback-command", "true", "--", "printf", "ok"],
+      "payload_argv": ["printf", "ok"]
+    },
+    {
+      "id": "safe_bootstrap_apply",
+      "native_decision": "deny",
+      "safety": "deny",
+      "expected_combined": "DENY",
+      "argv": ["safe", "opencode-bootstrap", "--scope", "project", "--apply"],
+      "tags": ["policy_mutation"]
+    },
+    {
+      "id": "safe_exec_opaque_child",
+      "native_decision": "ask",
+      "safety": "ask",
+      "expected_combined": "ASK_USER",
+      "argv": ["safe", "exec-risky", "--target", "repo", "--reason", "x", "--expected-state", "{}", "--rollback-command", "true", "--", "printf", "ok"],
+      "payload_argv": ["printf", "ok"],
+      "payload_parser_status": "opaque",
+      "tags": ["unknown"]
+    },
+    {
+      "id": "ssh_exec_benign",
+      "native_decision": "ask",
+      "safety": "ask",
+      "expected_combined": "ASK_USER",
+      "argv": ["ssh_relay", "exec", "--name", "prod", "pwd"],
+      "remote_host": "machine:prod",
+      "remote_command": "pwd",
+      "remote_payload_argv": ["pwd"]
+    },
+    {
+      "id": "ssh_exec_system_write",
+      "native_decision": "ask",
+      "safety": "deny",
+      "expected_combined": "DENY",
+      "argv": ["ssh_relay", "exec", "--name", "prod", "touch /etc/example"],
+      "remote_host": "machine:prod",
+      "remote_command": "touch /etc/example",
+      "remote_payload_argv": ["touch", "/etc/example"],
+      "remote_payload_targets": [{"role": "destination", "kind": "system_path", "requested": "/etc/example"}]
+    },
+    {
+      "id": "ssh_exec_risky_benign",
+      "native_decision": "ask",
+      "safety": "ask",
+      "expected_combined": "ASK_USER",
+      "argv": ["ssh_relay", "exec", "--name", "prod", "--risky", "pwd"],
+      "remote_host": "machine:prod",
+      "remote_command": "pwd",
+      "remote_payload_argv": ["pwd"],
+      "tags": ["risk_label"]
+    },
+    {
+      "id": "ssh_sudo_exec",
+      "native_decision": "deny",
+      "safety": "deny",
+      "expected_combined": "DENY",
+      "argv": ["ssh_relay", "sudo-exec", "--name", "prod", "whoami"],
+      "remote_host": "machine:prod",
+      "remote_command": "whoami",
+      "tags": ["privilege"]
+    },
+    {
+      "id": "ssh_upload",
+      "native_decision": "ask",
+      "safety": "ask",
+      "expected_combined": "ASK_USER",
+      "argv": ["ssh_relay", "upload", "--name", "prod", "local.bin", "/tmp/local.bin"],
+      "remote_host": "machine:prod",
+      "targets": [
+        {"role": "source", "kind": "workspace_file", "requested": "local.bin", "sensitivity": "nonsecret"},
+        {"role": "destination", "kind": "remote_path", "requested": "/tmp/local.bin"}
+      ],
+      "tags": ["transfer"]
+    },
+    {
+      "id": "ssh_download",
+      "native_decision": "ask",
+      "safety": "ask",
+      "expected_combined": "ASK_USER",
+      "argv": ["ssh_relay", "download", "--name", "prod", "/tmp/report.txt", "report.txt"],
+      "remote_host": "machine:prod",
+      "targets": [
+        {"role": "source", "kind": "remote_path", "requested": "/tmp/report.txt"},
+        {"role": "destination", "kind": "workspace_file", "requested": "report.txt", "sensitivity": "nonsecret"}
+      ],
+      "tags": ["transfer"]
+    },
+    {
+      "id": "ssh_job_start_benign",
+      "native_decision": "ask",
+      "safety": "ask",
+      "expected_combined": "ASK_USER",
+      "argv": ["ssh_relay", "job", "start", "--name", "prod", "--job", "demo", "pwd"],
+      "remote_host": "machine:prod",
+      "remote_command": "pwd",
+      "remote_payload_argv": ["pwd"]
+    },
+    {
+      "id": "ssh_job_start_system_write",
+      "native_decision": "ask",
+      "safety": "deny",
+      "expected_combined": "DENY",
+      "argv": ["ssh_relay", "job", "start", "--name", "prod", "--job", "demo", "touch /etc/example"],
+      "remote_host": "machine:prod",
+      "remote_command": "touch /etc/example",
+      "remote_payload_argv": ["touch", "/etc/example"],
+      "remote_payload_targets": [{"role": "destination", "kind": "system_path", "requested": "/etc/example"}]
+    },
+    {
+      "id": "ssh_job_tail",
+      "native_decision": "ask",
+      "safety": "ask",
+      "expected_combined": "ASK_USER",
+      "argv": ["ssh_relay", "job", "tail", "--name", "prod", "--job", "demo"],
+      "remote_host": "machine:prod",
+      "tags": ["possible_sensitive_output"]
+    },
+    {
+      "id": "unknown_wrapper",
+      "native_decision": "ask",
+      "safety": "ask",
+      "expected_combined": "ASK_USER",
+      "argv": ["helperctl", "run", "payload"],
+      "tags": ["unknown"]
+    },
+    {
+      "id": "opaque_wrapper",
+      "native_decision": "ask",
+      "safety": "ask",
+      "expected_combined": "ASK_USER",
+      "argv": ["safe", "status"],
+      "parser_status": "opaque",
+      "tags": ["unknown"]
+    },
+    {
+      "id": "native_deny_terminal",
+      "native_decision": "deny",
+      "safety": "deny",
+      "expected_combined": "DENY",
+      "argv": ["helperctl", "inspect", "target"]
+    },
+    {
+      "id": "ssh_upload_missing_host",
+      "native_decision": "ask",
+      "safety": "ask",
+      "expected_combined": "ASK_USER",
+      "argv": ["ssh_relay", "upload", "local.bin", "/tmp/local.bin"],
+      "targets": [
+        {"role": "source", "kind": "workspace_file", "requested": "local.bin", "sensitivity": "nonsecret"},
+        {"role": "destination", "kind": "remote_path", "requested": "/tmp/local.bin"}
+      ],
+      "tags": ["unknown", "transfer"]
+    }
+  ]
+}
