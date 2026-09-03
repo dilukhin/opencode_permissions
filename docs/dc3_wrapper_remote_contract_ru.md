@@ -1,6 +1,6 @@
 # DC-3 — wrapper / remote recursive extraction
 
-Статус: **IMPLEMENTATION CANDIDATE / CI REQUIRED**  
+Статус: **PASS**  
 Дата: 2026-09-03
 
 ## 1. Scope
@@ -219,7 +219,7 @@ tests/classifier_cases/dc3_cases.json
 
 ## 7. Safety acceptance
 
-Required counters:
+CI подтвердил:
 
 ```text
 wrapper_auto_allow                 = 0
@@ -231,7 +231,7 @@ approval_substitution_false_safe   = 0
 exact_transfer_identity_missing    = 0
 ```
 
-`exact_transfer_identity_missing` считается только для complete synthetic upload/download cases; deliberately incomplete host case должен fail closed.
+`exact_transfer_identity_missing` считается только для complete synthetic upload/download cases; deliberately incomplete host case fail-closes.
 
 ## 8. Deliberate non-claims
 
@@ -248,8 +248,8 @@ DC-3 не доказывает:
 
 `wrapper_auto_allow = 0` — intentional safety property этого slice.
 
-## 9. Acceptance / next step
+## 9. Acceptance evidence / next step
 
-DC-3 PASS только после Linux/Windows CI matrix и сохранения Gate B/DC-0/DC-1/DC-2 regressions.
+GitHub Actions run 69 на head `5f773a6ed87424acebc1a6243716eeba5ea4958b` завершён `success` на полном Linux/Windows Python matrix; Gate B/DC-0/DC-1/DC-2 regressions сохранены.
 
-После PASS следующий обязательный slice — **DC-4 exact OpenCode 1.18.26 parser/preflight adapter**. Он должен доказать происхождение `parsed-simple/v1` / `parsed-wrapper/v1` facts из реального OpenCode tool path и определить, какие trusted identity fields можно получить source/runtime-technically без model-controlled substitution.
+Следующий обязательный slice — **DC-4 exact OpenCode 1.18.26 parser/preflight adapter**. Он должен доказать происхождение `parsed-simple/v1` / `parsed-wrapper/v1` facts из реального OpenCode tool path и определить, какие trusted identity fields можно получить source/runtime-technically без model-controlled substitution.
