@@ -33,3 +33,34 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Check Stage 0 inventory CLI
         run: python tools/stage0_inventory.py --help
+
+  dc4-runtime:
+    name: DC-4 / OpenCode 1.18.26 runtime proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Download exact OpenCode release artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/opencode-linux-x64.tar.gz"
+          curl -fL --retry 3 --retry-all-errors \
+            -o "$archive" \
+            https://github.com/anomalyco/opencode/releases/download/v1.18.26/opencode-linux-x64.tar.gz
+          echo "7c20c1ffa91bcca0ac903752260bcc36307dff656833baead2f5ef3b224b16c6  $archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/dc4-opencode"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/dc4-opencode"
+          binary="$(find "$RUNNER_TEMP/dc4-opencode" -type f -name opencode -print -quit)"
+          test -n "$binary"
+          chmod +x "$binary"
+          test "$($binary --version)" = "1.18.26"
+          echo "DC4_OPENCODE=$binary" >> "$GITHUB_ENV"
+      - name: Run exact-version non-destructive integration proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tests/dc4_runtime/run_probe.py --opencode "$DC4_OPENCODE" --repo-root "$GITHUB_WORKSPACE"
