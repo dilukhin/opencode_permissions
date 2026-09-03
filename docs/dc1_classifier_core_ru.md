@@ -1,6 +1,6 @@
 # DC-1 — classifier result schema и pure composition engine
 
-Статус: **IMPLEMENTATION CANDIDATE / CI REQUIRED**  
+Статус: **PASS — PURE CORE VERIFIED**  
 Дата: 2026-09-03
 
 ## 1. Scope
@@ -112,4 +112,20 @@ DC-1 не доказывает:
 - unknown parent effect downgrades ASK;
 - malformed compound operator binding downgrades ASK.
 
-DC-1 считается PASS только после Linux/Windows CI matrix и отсутствия Gate B/DC-0 regressions.
+CI verification:
+
+```text
+GitHub Actions run 62
+ubuntu-latest  / Python 3.11 PASS
+ubuntu-latest  / Python 3.14 PASS
+windows-latest / Python 3.11 PASS
+windows-latest / Python 3.14 PASS
+```
+
+Gate B и DC-0 regressions в том же matrix PASS.
+
+## 8. Result
+
+DC-1 pure core: **PASS**.
+
+Следующий slice: DC-2 bounded analyzers. Он должен использовать этот result/identity contract без ослабления terminal native precedence или ALLOW completeness.
