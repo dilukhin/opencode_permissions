@@ -186,6 +186,37 @@ def tool_parts(messages: Any) -> list[dict[str, Any]]:
     return result
 
 
+def scenario_terminal(name: str, trace_events: list[dict[str, Any]], parts: list[dict[str, Any]]) -> bool:
+    names = [item.get("event") for item in trace_events]
+    states = [(part.get("state") or {}).get("status") for part in parts]
+    if name == "native_allow":
+        return "completed" in states and "tool_after" in names
+    if name == "native_deny":
+        return "error" in states
+    if name == "classifier_allow":
+        return "completed" in states and "shell_env_guard_pass" in names and "tool_after" in names
+    if name == "classifier_env_drift":
+        return "error" in states and "shell_env_guard_reject" in names
+    return False
+
+
+def wait_scenario(base: str, directory: str, session_id: str, trace: Path, name: str, timeout: int = 30) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    deadline = time.monotonic() + timeout
+    last_events: list[dict[str, Any]] = []
+    last_parts: list[dict[str, Any]] = []
+    while time.monotonic() < deadline:
+        messages = http_json("GET", base + f"/session/{session_id}/message", directory=directory, timeout=5)
+        last_events = events(trace)
+        last_parts = tool_parts(messages)
+        if scenario_terminal(name, last_events, last_parts):
+            return last_events, last_parts
+        time.sleep(0.2)
+    raise AssertionError(
+        f"{name}: timed out; events={[item.get('event') for item in last_events]}; "
+        f"tool_states={[(part.get('state') or {}).get('status') for part in last_parts]}"
+    )
+
+
 def assert_scenario(name: str, trace_events: list[dict[str, Any]], parts: list[dict[str, Any]], sentinel: str) -> None:
     names = [item.get("event") for item in trace_events]
     if names.count("tool_before") != 1:
@@ -313,18 +344,16 @@ def run_scenario(opencode: str, repo_root: Path, name: str) -> dict[str, Any]:
             session_id = session["id"]
             http_json(
                 "POST",
-                base + f"/session/{session_id}/message",
+                base + f"/session/{session_id}/prompt_async",
                 directory=str(project),
                 payload={
                     "agent": "build",
                     "model": {"providerID": "dc4", "modelID": "mock"},
                     "parts": [{"type": "text", "text": f"DC4 runtime proof {name}"}],
                 },
-                timeout=45,
+                timeout=10,
             )
-            messages = http_json("GET", base + f"/session/{session_id}/message", directory=str(project))
-            trace_events = events(trace)
-            parts = tool_parts(messages)
+            trace_events, parts = wait_scenario(base, str(project), session_id, trace, name)
             assert_scenario(name, trace_events, parts, sentinel)
             return {
                 "scenario": name,
