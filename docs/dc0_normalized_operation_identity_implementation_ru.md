@@ -1,6 +1,6 @@
 # DC-0 — NormalizedOperation identity implementation
 
-Статус: **IMPLEMENTATION CANDIDATE / CI REQUIRED**  
+Статус: **PASS — IMPLEMENTED CORE / TRUSTED-BOUNDARY RECOMPUTATION DEFERRED**  
 Дата: 2026-09-03
 
 ## 1. Scope
@@ -101,9 +101,21 @@ Schema/canonicalization version mismatch возвращает relation `NON_COMP
 - schema/canonicalization `NON_COMPARABLE`;
 - все 30 existing relation fixtures executable end-to-end.
 
+CI verification:
+
+```text
+GitHub Actions run 58
+ubuntu-latest  / Python 3.11 PASS
+ubuntu-latest  / Python 3.14 PASS
+windows-latest / Python 3.11 PASS
+windows-latest / Python 3.14 PASS
+```
+
+Все существующие Gate B regressions в том же matrix также PASS.
+
 ## 7. Deliberate non-claims
 
-Этот slice пока не доказывает:
+Этот slice не доказывает:
 
 - actual filesystem object identity acquisition;
 - Windows HANDLE/POSIX inode preflight implementation for arbitrary targets;
@@ -112,18 +124,22 @@ Schema/canonicalization version mismatch возвращает relation `NON_COMP
 - classifier parser/effect semantics;
 - live OpenCode integration.
 
-Эти responsibilities остаются последующими slices/gates. Но после PASS этого slice classifier сможет выпускать reproducible identity для уже trusted/preflighted typed operation data.
+Эти responsibilities остаются последующими slices/gates. После PASS этого slice classifier может выпускать reproducible identity для уже trusted/preflighted typed operation data.
 
-## 8. Acceptance
+## 8. Acceptance result
 
-DC-0 implementation candidate считается PASS только если Linux/Windows CI matrix подтверждает:
+DC-0 core acceptance: **PASS**.
+
+Подтверждено:
 
 ```text
 all existing relation fixtures pass
 fixed identity vector stable
 invalid JSON/numeric/unicode forms fail closed
-no secret-like sensitive dependency accepted
+secret-like sensitive dependency rejected
 no existing Gate B regression fails
 ```
 
-После PASS можно начинать DC-1 classifier schema/composition engine. U2 register может быть повышен только до статуса `IMPLEMENTED CORE / trusted-boundary recomputation deferred`, а не безусловно CLOSED.
+Следующий slice: **DC-1 classifier schema/composition engine**.
+
+U2 повышается только до `IMPLEMENTED CORE / trusted-boundary recomputation deferred`, а не до безусловного CLOSED: recomputation и acquisition фактических runtime identities должны быть доказаны на trusted execution boundary в последующем integration slice.
