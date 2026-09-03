@@ -33,7 +33,7 @@ def free_port() -> int:
 
 
 class MockHandler(BaseHTTPRequestHandler):
-    command = ""
+    tool_command = ""
 
     def log_message(self, format: str, *args: Any) -> None:
         return
@@ -56,7 +56,7 @@ class MockHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         if has_bash_tool and not has_tool_result:
-            arguments = json.dumps({"command": self.command}, separators=(",", ":"))
+            arguments = json.dumps({"command": self.tool_command}, separators=(",", ":"))
             chunks = [
                 {
                     "id": "chatcmpl-dc4",
@@ -123,7 +123,7 @@ class MockHandler(BaseHTTPRequestHandler):
 @contextmanager
 def mock_provider(command: str):
     port = free_port()
-    handler = type("ScenarioMockHandler", (MockHandler,), {"command": command})
+    handler = type("ScenarioMockHandler", (MockHandler,), {"tool_command": command})
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -135,14 +135,7 @@ def mock_provider(command: str):
         thread.join(timeout=5)
 
 
-def http_json(
-    method: str,
-    url: str,
-    *,
-    directory: str,
-    payload: Any | None = None,
-    timeout: int = 30,
-) -> Any:
+def http_json(method: str, url: str, *, directory: str, payload: Any | None = None, timeout: int = 30) -> Any:
     data = None if payload is None else json.dumps(payload).encode()
     headers = {"x-opencode-directory": directory}
     if data is not None:
@@ -193,35 +186,21 @@ def tool_parts(messages: Any) -> list[dict[str, Any]]:
     return result
 
 
-def assert_scenario(
-    name: str,
-    trace_events: list[dict[str, Any]],
-    parts: list[dict[str, Any]],
-    sentinel: str,
-) -> None:
+def assert_scenario(name: str, trace_events: list[dict[str, Any]], parts: list[dict[str, Any]], sentinel: str) -> None:
     names = [item.get("event") for item in trace_events]
     if names.count("tool_before") != 1:
         raise AssertionError(f"{name}: expected exactly one tool_before, got {names}")
 
     completed = [p for p in parts if (p.get("state") or {}).get("status") == "completed"]
-    sentinel_completed = any(
-        sentinel in str((p.get("state") or {}).get("output", "")) for p in completed
-    )
+    sentinel_completed = any(sentinel in str((p.get("state") or {}).get("output", "")) for p in completed)
 
     if name == "native_allow":
-        forbidden = {
-            "permission_asked",
-            "classifier_result",
-            "permission_reply_once",
-            "shell_env_guard_pass",
-        }
+        forbidden = {"permission_asked", "classifier_result", "permission_reply_once", "shell_env_guard_pass"}
         if forbidden.intersection(names):
             raise AssertionError(f"native_allow: classifier/ASK path unexpectedly observed: {names}")
         if names.count("shell_env_native_passthrough") != 1 or names.count("tool_after") != 1:
             raise AssertionError(f"native_allow: expected native execution path: {names}")
-        if not sentinel_completed or not any(
-            e.get("event") == "tool_after" and e.get("outputMatched") for e in trace_events
-        ):
+        if not sentinel_completed or not any(e.get("event") == "tool_after" and e.get("outputMatched") for e in trace_events):
             raise AssertionError("native_allow: execution sentinel missing")
         return
 
@@ -245,26 +224,20 @@ def assert_scenario(
         if names.count(required) != 1:
             raise AssertionError(f"{name}: missing/duplicate {required}: {names}")
     classifier = next(e for e in trace_events if e.get("event") == "classifier_result")
-    if classifier.get("decision") != "ALLOW" or not str(
-        classifier.get("operationIdentity", "")
-    ).startswith("sha256:"):
+    if classifier.get("decision") != "ALLOW" or not str(classifier.get("operationIdentity", "")).startswith("sha256:"):
         raise AssertionError(f"{name}: classifier result is not exact ALLOW: {classifier}")
 
     if name == "classifier_allow":
         if names.count("shell_env_guard_pass") != 1 or names.count("tool_after") != 1:
             raise AssertionError(f"classifier_allow: guard/execution path incomplete: {names}")
-        if not sentinel_completed or not any(
-            e.get("event") == "tool_after" and e.get("outputMatched") for e in trace_events
-        ):
+        if not sentinel_completed or not any(e.get("event") == "tool_after" and e.get("outputMatched") for e in trace_events):
             raise AssertionError("classifier_allow: execution sentinel missing")
         return
 
     if name == "classifier_env_drift":
         rejects = [e for e in trace_events if e.get("event") == "shell_env_guard_reject"]
         if len(rejects) != 1 or rejects[0].get("reason") != "environment_drift":
-            raise AssertionError(
-                f"classifier_env_drift: expected environment guard rejection: {trace_events}"
-            )
+            raise AssertionError(f"classifier_env_drift: expected environment guard rejection: {trace_events}")
         if "shell_env_guard_pass" in names or "tool_after" in names or sentinel_completed:
             raise AssertionError(f"classifier_env_drift: command advanced after drift: {names}")
         return
@@ -282,10 +255,7 @@ def run_scenario(opencode: str, repo_root: Path, name: str) -> dict[str, Any]:
         home.mkdir()
         plugin_dir = project / ".opencode" / "plugins"
         plugin_dir.mkdir(parents=True)
-        shutil.copy2(
-            repo_root / "tests" / "dc4_runtime" / "dc4_plugin.js",
-            plugin_dir / "dc4_plugin.js",
-        )
+        shutil.copy2(repo_root / "tests" / "dc4_runtime" / "dc4_plugin.js", plugin_dir / "dc4_plugin.js")
         trace = root / "trace.jsonl"
 
         config = {
@@ -303,10 +273,7 @@ def run_scenario(opencode: str, repo_root: Path, name: str) -> dict[str, Any]:
                             "limit": {"context": 32000, "output": 4096},
                         }
                     },
-                    "options": {
-                        "apiKey": "dc4-local-test",
-                        "baseURL": f"http://127.0.0.1:{provider_port}/v1",
-                    },
+                    "options": {"apiKey": "dc4-local-test", "baseURL": f"http://127.0.0.1:{provider_port}/v1"},
                 }
             },
         }
@@ -342,12 +309,7 @@ def run_scenario(opencode: str, repo_root: Path, name: str) -> dict[str, Any]:
         try:
             wait_server(base, str(project), server)
             session_rule = {"permission": "bash", "pattern": command, "action": action}
-            session = http_json(
-                "POST",
-                base + "/session",
-                directory=str(project),
-                payload={"title": f"DC4 {name}", "permission": [session_rule]},
-            )
+            session = http_json("POST", base + "/session", directory=str(project), payload={"title": f"DC4 {name}", "permission": [session_rule]})
             session_id = session["id"]
             http_json(
                 "POST",
@@ -360,11 +322,7 @@ def run_scenario(opencode: str, repo_root: Path, name: str) -> dict[str, Any]:
                 },
                 timeout=45,
             )
-            messages = http_json(
-                "GET",
-                base + f"/session/{session_id}/message",
-                directory=str(project),
-            )
+            messages = http_json("GET", base + f"/session/{session_id}/message", directory=str(project))
             trace_events = events(trace)
             parts = tool_parts(messages)
             assert_scenario(name, trace_events, parts, sentinel)
@@ -389,22 +347,12 @@ def main() -> int:
     parser.add_argument("--repo-root", default=str(Path(__file__).resolve().parents[2]))
     args = parser.parse_args()
     repo_root = Path(args.repo_root).resolve()
-    version = subprocess.run(
-        [args.opencode, "--version"],
-        check=True,
-        text=True,
-        capture_output=True,
-    ).stdout.strip()
+    version = subprocess.run([args.opencode, "--version"], check=True, text=True, capture_output=True).stdout.strip()
     if version != "1.18.26":
         raise SystemExit(f"DC-4 requires exact OpenCode 1.18.26, got {version!r}")
 
     results = [run_scenario(args.opencode, repo_root, name) for name in SCENARIOS]
-    print(
-        json.dumps(
-            {"schema": "dc4-runtime-proof/v1", "opencode_version": version, "results": results},
-            indent=2,
-        )
-    )
+    print(json.dumps({"schema": "dc4-runtime-proof/v1", "opencode_version": version, "results": results}, indent=2))
     return 0
 
 
