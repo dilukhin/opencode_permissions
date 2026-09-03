@@ -43,11 +43,15 @@ class GateBCompatibilityTests(unittest.TestCase):
             gate.select_profile(REGISTRY, "1.18.26", require_deployable=True)
         self.assertEqual(ctx.exception.code, "PROFILE_NOT_DEPLOYABLE")
 
-    def test_linux_runtime_windows_source_status(self):
+    def test_linux_runtime_windows_source_status_with_b_p2_evidence(self):
         self.assertEqual(self.p26["overall_status"], "SOURCE_REVALIDATED")
         self.assertEqual(self.p26["platform_status"]["linux"], "RUNTIME_REVALIDATED")
         self.assertEqual(self.p26["platform_status"]["windows"], "SOURCE_REVALIDATED")
-        self.assertIn("WINDOWS_B_P2_PENDING", self.p26["blocking_reasons"])
+        win = self.p26["runtime_observation"]["windows"]
+        self.assertEqual(win["result"], "B-P2_PASS")
+        self.assertFalse(win["opencode_runtime_executed"])
+        self.assertEqual(win["evidence"], "docs/gate_b_windows_peer_identity_probe_ru.md")
+        self.assertNotIn("WINDOWS_B_P2_PENDING", self.p26["blocking_reasons"])
 
     def test_shared_critical_fingerprints_are_identical(self):
         result = gate.compare_fast_path(

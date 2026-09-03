@@ -24,7 +24,19 @@
         "broker_unavailable_fail_closed"
       ]
     },
-    "windows": null
+    "windows": {
+      "observed_platform": "Windows 10 build 19045",
+      "opencode_runtime_executed": false,
+      "evidence": "docs/gate_b_windows_peer_identity_probe_ru.md",
+      "verified_scope": [
+        "GetNamedPipeClientProcessId_trusted_host_identity",
+        "same_user_child_rejection",
+        "non_inheritable_retained_process_handle",
+        "registered_host_handle_lifecycle_invalidation",
+        "no_bearer_secret_required"
+      ],
+      "result": "B-P2_PASS"
+    }
   },
   "corpus_evidence": {
     "native_policy_candidate": "docs/gate_b_native_policy_candidate_metrics_ru.md",
@@ -60,17 +72,19 @@
     "grep_permission_pattern_is_search_pattern": true,
     "normal_run_local_server_in_process": true,
     "custom_tool_executes_in_host_registry_runtime": true,
-    "linux_broker_requires_bearer_secret": false
+    "linux_broker_requires_bearer_secret": false,
+    "windows_named_pipe_peer_identity_primitive": true,
+    "windows_broker_requires_bearer_secret": false
   },
   "deployable": false,
   "policy_artifact_id": null,
   "blocking_reasons": [
-    "WINDOWS_B_P2_PENDING",
     "CANONICAL_DEPLOYABLE_ARTIFACT_NOT_BUILT",
     "FINAL_GATE_B_CLOSURE_PENDING"
   ],
   "notes": [
     "Linux runtime revalidation is scoped to the Gate B broker/custom-tool integration proof on the installed 1.18.26 runtime.",
-    "Overall status remains SOURCE_REVALIDATED because Windows B-P2 is pending and no canonical deployable policy artifact exists."
+    "Windows B-P2 runtime evidence proves the named-pipe/process-handle kernel primitive only; OpenCode 1.18.26 was not executed on Windows, so Windows platform status remains SOURCE_REVALIDATED.",
+    "B-P2 is no longer a Gate B blocker."
   ]
 }
