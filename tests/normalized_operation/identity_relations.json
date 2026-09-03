@@ -1,0 +1,571 @@
+{
+  "schema": 1,
+  "purpose": "Gate B U2 exact identity relation fixtures; not a command/effect classifier corpus",
+  "canonicalization_contract": "docs/gate_b_normalized_operation_identity_ru.md",
+  "expected_relations": [
+    "SAME",
+    "DIFFERENT",
+    "NON_COMPARABLE"
+  ],
+  "base_operations": {
+    "local_git_status": {
+      "schema": "normalized-operation/v1",
+      "canonicalization": "op-jcs-v1",
+      "platform": "windows",
+      "channel": "local",
+      "operation_kind": "process_exec",
+      "execution": {
+        "kind": "argv",
+        "executable": {
+          "invoked": "git",
+          "resolved_path": "C:/Tools/Git/bin/git.exe",
+          "object_identity": "win-file:vol1:file100"
+        },
+        "argv": [
+          "git",
+          "status",
+          "--short"
+        ],
+        "cwd": {
+          "lexical": "C:/Repo",
+          "object_identity": "win-dir:vol1:file200",
+          "follow_mode": "target"
+        }
+      },
+      "targets": [
+        {
+          "role": "repository",
+          "kind": "directory",
+          "identity": {
+            "lexical": "C:/Repo",
+            "object_identity": "win-dir:vol1:file200",
+            "follow_mode": "target"
+          }
+        }
+      ],
+      "effects": [
+        "git_read",
+        "read"
+      ],
+      "context_dependencies": []
+    },
+    "local_shell": {
+      "schema": "normalized-operation/v1",
+      "canonicalization": "op-jcs-v1",
+      "platform": "linux",
+      "channel": "local",
+      "operation_kind": "shell_script",
+      "execution": {
+        "kind": "shell_script",
+        "shell": {
+          "resolved_path": "/bin/bash",
+          "object_identity": "posix:dev1:ino10"
+        },
+        "script": "printf ok",
+        "cwd": {
+          "lexical": "/repo",
+          "object_identity": "posix:dev1:ino20",
+          "follow_mode": "target"
+        }
+      },
+      "targets": [],
+      "effects": [
+        "process"
+      ],
+      "context_dependencies": []
+    },
+    "remote_pwd": {
+      "schema": "normalized-operation/v1",
+      "canonicalization": "op-jcs-v1",
+      "platform": "linux",
+      "channel": "remote",
+      "operation_kind": "remote_exec",
+      "execution": {
+        "kind": "remote_argv",
+        "argv": [
+          "pwd"
+        ],
+        "cwd": {
+          "lexical": "/home/user",
+          "object_identity": null,
+          "follow_mode": "target"
+        }
+      },
+      "targets": [
+        {
+          "role": "host",
+          "kind": "host",
+          "identity": {
+            "canonical": "machine:A"
+          }
+        }
+      ],
+      "effects": [
+        "read",
+        "remote_execution"
+      ],
+      "context_dependencies": [],
+      "remote": {
+        "transport": "ssh_relay",
+        "host_identity": "machine:A"
+      }
+    },
+    "transfer_upload": {
+      "schema": "normalized-operation/v1",
+      "canonicalization": "op-jcs-v1",
+      "platform": "windows",
+      "channel": "transfer",
+      "operation_kind": "transfer",
+      "execution": {
+        "kind": "transfer",
+        "transport": "ssh_relay",
+        "direction": "upload",
+        "overwrite": "replace"
+      },
+      "remote": {
+        "host_identity": "machine:A"
+      },
+      "targets": [
+        {
+          "role": "source",
+          "kind": "file",
+          "identity": {
+            "lexical": "C:/Repo/a.bin",
+            "object_identity": "win-file:vol1:file300",
+            "follow_mode": "target"
+          }
+        },
+        {
+          "role": "destination",
+          "kind": "remote_path",
+          "identity": {
+            "host_identity": "machine:A",
+            "lexical": "/tmp/a.bin"
+          }
+        }
+      ],
+      "effects": [
+        "network",
+        "remote_write",
+        "transfer"
+      ],
+      "context_dependencies": []
+    },
+    "file_create": {
+      "schema": "normalized-operation/v1",
+      "canonicalization": "op-jcs-v1",
+      "platform": "windows",
+      "channel": "local",
+      "operation_kind": "file_create",
+      "execution": {
+        "kind": "structured_file_create"
+      },
+      "targets": [
+        {
+          "role": "destination",
+          "kind": "file",
+          "identity": {
+            "lexical": "C:/Repo/new.txt",
+            "object_identity": null,
+            "parent_object_identity": "win-dir:vol1:file200",
+            "leaf": "new.txt",
+            "follow_mode": "target"
+          }
+        }
+      ],
+      "effects": [
+        "write"
+      ],
+      "context_dependencies": []
+    },
+    "local_with_dependency": {
+      "schema": "normalized-operation/v1",
+      "canonicalization": "op-jcs-v1",
+      "platform": "windows",
+      "channel": "local",
+      "operation_kind": "process_exec",
+      "execution": {
+        "kind": "argv",
+        "executable": {
+          "invoked": "git",
+          "resolved_path": "C:/Tools/Git/bin/git.exe",
+          "object_identity": "win-file:vol1:file100"
+        },
+        "argv": [
+          "git",
+          "status",
+          "--short"
+        ],
+        "cwd": {
+          "lexical": "C:/Repo",
+          "object_identity": "win-dir:vol1:file200",
+          "follow_mode": "target"
+        }
+      },
+      "targets": [
+        {
+          "role": "repository",
+          "kind": "directory",
+          "identity": {
+            "lexical": "C:/Repo",
+            "object_identity": "win-dir:vol1:file200",
+            "follow_mode": "target"
+          }
+        }
+      ],
+      "effects": [
+        "git_read",
+        "read"
+      ],
+      "context_dependencies": [
+        {
+          "kind": "resolved_variable",
+          "name": "BUILD_DIR",
+          "value": "C:/Repo/build"
+        }
+      ]
+    }
+  },
+  "case_count": 30,
+  "cases": [
+    {
+      "id": "object_key_order",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "reorder_object_keys"
+      },
+      "expected_relation": "SAME"
+    },
+    {
+      "id": "effects_order",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/effects",
+        "value": [
+          "read",
+          "git_read"
+        ]
+      },
+      "expected_relation": "SAME"
+    },
+    {
+      "id": "effects_duplicates",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/effects",
+        "value": [
+          "git_read",
+          "read",
+          "read"
+        ]
+      },
+      "preprocess": "sort_unique_set_fields",
+      "expected_relation": "SAME"
+    },
+    {
+      "id": "target_set_order",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "reorder_semantic_set",
+        "path": "/targets"
+      },
+      "expected_relation": "SAME"
+    },
+    {
+      "id": "argv_order",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/execution/argv",
+        "value": [
+          "git",
+          "--short",
+          "status"
+        ]
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "argv_boundary",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/execution/argv",
+        "value": [
+          "git",
+          "status --short"
+        ]
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "payload_whitespace",
+      "base": "local_shell",
+      "mutation": {
+        "kind": "set",
+        "path": "/execution/script",
+        "value": "printf  ok"
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "purpose_display_correlation",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "change_excluded_metadata",
+        "fields": [
+          "purpose",
+          "display",
+          "operation_id"
+        ]
+      },
+      "expected_relation": "SAME"
+    },
+    {
+      "id": "channel",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/channel",
+        "value": "remote"
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "platform",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/platform",
+        "value": "linux"
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "operation_kind",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/operation_kind",
+        "value": "transfer"
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "cwd",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "merge",
+        "path": "/execution/cwd",
+        "value": {
+          "lexical": "C:/Other",
+          "object_identity": "win-dir:vol1:file201"
+        }
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "executable_path",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "merge",
+        "path": "/execution/executable",
+        "value": {
+          "resolved_path": "C:/Other/git.exe",
+          "object_identity": "win-file:vol1:file101"
+        }
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "executable_object_same_path",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/execution/executable/object_identity",
+        "value": "win-file:vol1:file999"
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "effects",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/effects",
+        "value": [
+          "git_read",
+          "read",
+          "write"
+        ]
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "unknown_vs_known_effect",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/effects",
+        "value": [
+          "unknown"
+        ]
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "windows_separators",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "replace_windows_separators",
+        "paths": [
+          "/execution/cwd/lexical",
+          "/targets/0/identity/lexical"
+        ]
+      },
+      "expected_relation": "DIFFERENT",
+      "description": "Conservative identity preserves requested path spelling; separator variation requires a new identity even if OS may resolve same target."
+    },
+    {
+      "id": "windows_case",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set_many",
+        "values": {
+          "/execution/cwd/lexical": "C:/repo",
+          "/targets/0/identity/lexical": "C:/repo"
+        }
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "lexical_dot_parent",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set_many",
+        "values": {
+          "/execution/cwd/lexical": "C:/Repo/./src/..",
+          "/targets/0/identity/lexical": "C:/Repo/./src/.."
+        }
+      },
+      "expected_relation": "DIFFERENT",
+      "description": "Conservative identity does not collapse dot/parent syntax because symlink/reparse resolution can change semantics."
+    },
+    {
+      "id": "path_object_identity",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/targets/0/identity/object_identity",
+        "value": "win-dir:vol1:file999"
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "follow_mode",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/targets/0/identity/follow_mode",
+        "value": "link"
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "remote_host",
+      "base": "remote_pwd",
+      "mutation": {
+        "kind": "set_many",
+        "values": {
+          "/remote/host_identity": "machine:B",
+          "/targets/0/identity/canonical": "machine:B"
+        }
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "transfer_direction",
+      "base": "transfer_upload",
+      "mutation": {
+        "kind": "set",
+        "path": "/execution/direction",
+        "value": "download"
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "transfer_overwrite",
+      "base": "transfer_upload",
+      "mutation": {
+        "kind": "set",
+        "path": "/execution/overwrite",
+        "value": "fail_if_exists"
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "transfer_remote_path",
+      "base": "transfer_upload",
+      "mutation": {
+        "kind": "set",
+        "path": "/targets/1/identity/lexical",
+        "value": "/tmp/b.bin"
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "nonexistent_parent",
+      "base": "file_create",
+      "mutation": {
+        "kind": "set",
+        "path": "/targets/0/identity/parent_object_identity",
+        "value": "win-dir:vol1:file777"
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "nonexistent_leaf",
+      "base": "file_create",
+      "mutation": {
+        "kind": "set_many",
+        "values": {
+          "/targets/0/identity/leaf": "other.txt",
+          "/targets/0/identity/lexical": "C:/Repo/other.txt"
+        }
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "context_dependency",
+      "base": "local_with_dependency",
+      "mutation": {
+        "kind": "set",
+        "path": "/context_dependencies/0/value",
+        "value": "C:/Other/build"
+      },
+      "expected_relation": "DIFFERENT"
+    },
+    {
+      "id": "canonicalization_version",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/canonicalization",
+        "value": "op-jcs-v2"
+      },
+      "expected_relation": "NON_COMPARABLE"
+    },
+    {
+      "id": "schema_version",
+      "base": "local_git_status",
+      "mutation": {
+        "kind": "set",
+        "path": "/schema",
+        "value": "normalized-operation/v2"
+      },
+      "expected_relation": "NON_COMPARABLE"
+    }
+  ]
+}

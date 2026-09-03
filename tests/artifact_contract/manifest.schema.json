@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dilukhin/opencode_permissions/tests/artifact_contract/manifest.schema.json",
+  "title": "OpenCode permission artifact manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema","artifact_format","artifact_id","artifact_path_segment","status","owner","target","policy_source","renderer","output","constraints"],
+  "properties": {
+    "schema": {"const": 1},
+    "artifact_format": {"const": "opencode-permission-artifact/v1"},
+    "artifact_id": {"type":"string","pattern":"^sha256:[0-9a-f]{64}$"},
+    "artifact_path_segment": {"type":"string","pattern":"^sha256-[0-9a-f]{64}$"},
+    "status": {"enum":["candidate","deployable"]},
+    "owner": {"const":"dilukhin/opencode_permissions"},
+    "target": {
+      "type":"object","additionalProperties":false,
+      "required":["product","exact_version","platform","compatibility_profile_id"],
+      "properties": {
+        "product":{"const":"opencode"},
+        "exact_version":{"type":"string","minLength":1},
+        "platform":{"enum":["linux","windows"]},
+        "compatibility_profile_id":{"type":"string","minLength":1}
+      }
+    },
+    "policy_source": {
+      "type":"object","additionalProperties":false,
+      "required":["path","sha256"],
+      "properties": {
+        "path":{"type":"string","pattern":"^policy/native/"},
+        "sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"}
+      }
+    },
+    "renderer": {
+      "type":"object","additionalProperties":false,
+      "required":["id","version"],
+      "properties": {
+        "id":{"const":"opencode-v1-permission-renderer"},
+        "version":{"type":"integer","minimum":1}
+      }
+    },
+    "output": {
+      "type":"object","additionalProperties":false,
+      "required":["relative_path","sha256"],
+      "properties": {
+        "relative_path":{"const":"permission.jsonc"},
+        "sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"}
+      }
+    },
+    "constraints": {
+      "type":"object","additionalProperties":false,
+      "required":["exact_version_only","requires_deployable_profile","nearest_version_fallback","setup_semantic_rewrite","effective_readback_required","competing_effective_layer_result"],
+      "properties": {
+        "exact_version_only":{"const":true},
+        "requires_deployable_profile":{"const":true},
+        "nearest_version_fallback":{"const":false},
+        "setup_semantic_rewrite":{"const":false},
+        "effective_readback_required":{"const":true},
+        "competing_effective_layer_result":{"const":"CONFLICT"}
+      }
+    }
+  }
+}

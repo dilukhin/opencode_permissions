@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "profile_id": "opencode-1.18.26-gate-b",
+  "opencode_version": "1.18.26",
+  "upstream": {
+    "repository": "anomalyco/opencode",
+    "tag": "v1.18.26",
+    "commit": "774cc7c1914e4329eefde5a669f938b0cf566661"
+  },
+  "overall_status": "DEPLOYABLE",
+  "platform_status": {
+    "linux": "RUNTIME_REVALIDATED",
+    "windows": "SOURCE_REVALIDATED"
+  },
+  "runtime_observation": {
+    "linux": {
+      "installed_version_observed": "1.18.26",
+      "evidence": "docs/gate_b_linux_opencode_broker_probe_ru.md",
+      "verified_scope": [
+        "custom_tool_runs_in_registered_opencode_host",
+        "SO_PEERCRED_trusted_host_identity",
+        "same_user_child_rejection",
+        "host_pidfd_lifecycle_invalidation",
+        "broker_unavailable_fail_closed"
+      ]
+    },
+    "windows": {
+      "observed_platform": "Windows 10 build 19045",
+      "opencode_runtime_executed": false,
+      "evidence": "docs/gate_b_windows_peer_identity_probe_ru.md",
+      "verified_scope": [
+        "GetNamedPipeClientProcessId_trusted_host_identity",
+        "same_user_child_rejection",
+        "non_inheritable_retained_process_handle",
+        "registered_host_handle_lifecycle_invalidation",
+        "no_bearer_secret_required"
+      ],
+      "result": "B-P2_PASS"
+    }
+  },
+  "corpus_evidence": {
+    "native_policy_candidate": "docs/gate_b_native_policy_candidate_metrics_ru.md",
+    "unsafe_auto_allow": 0,
+    "dangerous_false_safe": 0
+  },
+  "critical_fingerprints": {
+    "permission_service": {"path":"packages/opencode/src/permission/index.ts","blob":"2e27ff2424dbb000ea9ed7f73471769716ba40a1"},
+    "tool_context": {"path":"packages/opencode/src/tool/tool.ts","blob":"e5e7802858ca5cd2250f8f34c4725a25c7a3221d"},
+    "shell_tool": {"path":"packages/opencode/src/tool/shell.ts","blob":"1e4423e017740617bc6e0df36ad9dcdb0197bccb"},
+    "permission_http": {"path":"packages/opencode/src/server/routes/instance/httpapi/groups/permission.ts","blob":"79959db499bd12a359ac84a9a189faebc84c016e"},
+    "permission_http_auth": {"path":"packages/opencode/src/server/routes/instance/httpapi/middleware/authorization.ts","blob":"61ce39ad39e0643758861e82220953399bb6c824"},
+    "wildcard": {"path":"packages/core/src/util/wildcard.ts","blob":"0a67817bcb58fe33c38073e1120f17e4baf444c7"},
+    "shell_id": {"path":"packages/opencode/src/tool/shell/id.ts","blob":"061253f8fb5562c2534c58dac42576365fc2d023"},
+    "read_tool": {"path":"packages/opencode/src/tool/read.ts","blob":"678ed44510488965bacc87238bf8c80f70ad3c07"},
+    "glob_tool": {"path":"packages/opencode/src/tool/glob.ts","blob":"40d3a27d3cba09911ea247ecaa35cfadef41701c"},
+    "grep_tool": {"path":"packages/opencode/src/tool/grep.ts","blob":"6ea67124a6f9e56ae66bbafe30c3bcf40e9fe9f8"},
+    "write_tool": {"path":"packages/opencode/src/tool/write.ts","blob":"37be6d8c47bcec6ecc6c768b2c990e3597333500"},
+    "apply_patch_tool": {"path":"packages/opencode/src/tool/apply_patch.ts","blob":"3f89a63974b0d1927ac698d5001f7fd04fc79392"},
+    "external_directory_tool": {"path":"packages/opencode/src/tool/external-directory.ts","blob":"4372db82d89ec76d5fbfc0bd1b272eca96bd492b"},
+    "tool_registry": {"path":"packages/opencode/src/tool/registry.ts","blob":"9167cb3ea6bc5c8dd075f0f8271adbdec6074b12"},
+    "run_command": {"path":"packages/opencode/src/cli/cmd/run.ts","blob":"cccc2550179f87bb74763004910028f79ade60c9"},
+    "plugin_tool_contract": {"path":"packages/plugin/src/tool.ts","blob":"9c6daa34d04ab61dd206360c1f187cfd694e668a"}
+  },
+  "verified_semantics": {
+    "last_matching_rule_wins": true,
+    "implicit_no_match": "ask",
+    "shell_permission_key": "bash",
+    "shell_tree_sitter_scan": true,
+    "redirected_statement_in_pattern": true,
+    "external_directory_separate_permission": true,
+    "apply_patch_uses_edit_for_add_update_delete_move": true,
+    "grep_permission_pattern_is_search_pattern": true,
+    "normal_run_local_server_in_process": true,
+    "custom_tool_executes_in_host_registry_runtime": true,
+    "linux_broker_requires_bearer_secret": false,
+    "windows_named_pipe_peer_identity_primitive": true,
+    "windows_broker_requires_bearer_secret": false
+  },
+  "deployable": true,
+  "policy_artifact_id": null,
+  "blocking_reasons": [],
+  "notes": [
+    "Linux runtime revalidation is scoped to the Gate B broker/custom-tool integration proof on the installed 1.18.26 runtime.",
+    "Windows B-P2 runtime evidence proves the named-pipe/process-handle kernel primitive only; OpenCode 1.18.26 was not executed on Windows, so Windows platform status remains SOURCE_REVALIDATED and Windows is not deployable.",
+    "Deployability is platform-scoped. Current deployable platform: linux."
+  ],
+  "deployable_platforms": ["linux"],
+  "policy_artifacts": {
+    "linux": "sha256:d983bb4d5f2b9f9be195267e89d16c27ce45e706a2afeb527d96142c535cc508"
+  }
+}

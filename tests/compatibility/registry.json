@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "status": "test_registry_not_deployable",
+  "selection": "exact_version_only",
+  "nearest_version_fallback": false,
+  "unknown_version_result": "UNVALIDATED_OPENCODE_VERSION",
+  "not_deployable_result": "PROFILE_NOT_DEPLOYABLE",
+  "fast_path_shared_fingerprints": [
+    "permission_service",
+    "tool_context",
+    "shell_tool",
+    "permission_http",
+    "permission_http_auth"
+  ],
+  "profiles": {
+    "1.18.18": "profiles/opencode-1.18.18.json",
+    "1.18.26": "profiles/opencode-1.18.26.json"
+  }
+}

@@ -1,0 +1,3 @@
+# Byte-bound Gate B policy/artifact files must survive Windows checkout unchanged.
+policy/native/** text eol=lf
+dist/opencode/** text eol=lf
