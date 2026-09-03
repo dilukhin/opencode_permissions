@@ -1,14 +1,14 @@
 # Cross-project unresolved design decisions
 
 Статус: **ACTIVE REGISTER**.  
-Последняя reconciliation: 2026-09-03 после formal Gate B closure.
+Последняя reconciliation: 2026-09-03 после DC-0 identity core verification.
 
 Этот документ содержит только те решения, которые ещё требуют evidence соответствующего owner/gate. Наличие записи не означает implementation gap текущего gate, если owner/gate указан как последующий.
 
 | ID | Решение | Owner / Gate | Что должно быть доказано для closure | Статус / evidence |
 |---|---|---|---|---|
 | U1 | Конкретный trusted authorization handoff mechanism | `opencode_permissions` / B | model-controlled channel не может изготовить valid grant; exact binding и replay semantics проверяемы | **CLOSED (Gate B feasibility/contract)** — kernel peer identity + broker contract + B-P3 exact-binding/replay regressions; production startup/concurrency остаются integration work |
-| U2 | Canonicalization и identity/hash `NormalizedOperation` | `opencode_permissions` / deterministic-classifier gate | semantic payload/target substitution меняет identity; platform quoting/path representation не создаёт unsafe equivalence; implementation имеет deterministic test vectors | **OPEN** — design и relation fixtures есть, но canonicalizer/cross-runtime vectors и trusted-boundary recomputation ещё не реализованы |
+| U2 | Canonicalization и identity/hash `NormalizedOperation` | `opencode_permissions` / deterministic-classifier gate | semantic payload/target substitution меняет identity; platform quoting/path representation не создаёт unsafe equivalence; implementation имеет deterministic test vectors; trusted boundary повторно проверяет identity inputs | **IMPLEMENTED CORE / trusted-boundary recomputation deferred** — `op-jcs-v1` restricted canonicalizer + domain-separated SHA-256 + 30 executable relation fixtures + Linux/Windows Python matrix PASS; runtime object acquisition/recomputation остаётся открытым integration requirement |
 | U3 | Single-use vs short-lived scoped grant | `opencode_permissions` / B | минимальный scope/lifetime, защита от unintended replay, practical integration | **CLOSED (Gate B contract)** — broker-resident one-use grant; replay и broker/host generation invalidation покрыты regression |
 | U4 | Canonical deployable permission artifact format/versioning | `opencode_permissions` / B | artifact достаточен `opencode_setup`, не требует semantic rewriting setup'ом | **CLOSED** — `opencode-permission-artifact/v1`, exact version/platform/profile/digest binding, Linux 1.18.26 artifact emitted |
 | U5 | Native-policy representation wrapper/controlled path | `opencode_permissions` / B | generic wrapper не становится authorization tunnel; direct safe path сохраняет prompt reduction | **CLOSED at native-policy scope** — wrapper/relay/interpreter cases remain ASK/DENY; hard-dangerous nested payload dominates; unsafe auto-ALLOW = 0 |
@@ -33,7 +33,17 @@ docs/gate_b_final_closure_ru.md
 
 Gate B закрыл U1/U3/U4/U5 на уровне своих design/runtime-feasibility contracts. Это **не** означает реализацию downstream responsibilities `agent-safe`, `ssh_relay`, `ScopedKB` или `opencode_setup`.
 
-U2 намеренно остаётся OPEN и становится foundational prerequisite внутреннего deterministic parser/effect-analysis gate: classifier не должен выдавать authorization для operation, identity которой нельзя детерминированно воспроизвести и повторно проверить на trusted boundary.
+## U2 DC-0 note
+
+DC-0 implementation evidence:
+
+```text
+tools/normalized_operation_identity.py
+tests/test_normalized_operation_identity.py
+docs/dc0_normalized_operation_identity_implementation_ru.md
+```
+
+Core canonicalization/identity теперь deterministic и cross-platform regression-tested. U2 намеренно не помечается `CLOSED`, потому что classifier/runtime integration ещё должна доказать acquisition и trusted-boundary recomputation фактических executable/path/remote identities перед controlled mutation.
 
 ## Правила register
 
