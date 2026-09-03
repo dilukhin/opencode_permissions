@@ -11,6 +11,7 @@ import copy
 import hashlib
 import json
 import os
+import posixpath
 import re
 import stat
 import sys
@@ -134,7 +135,9 @@ def _parse_static_simple(command: str) -> tuple[list[str] | None, str | None]:
     argv = command.split(" ")
     if not argv or any(not token or TOKEN_RE.fullmatch(token) is None for token in argv):
         return None, "syntax.token_unsupported"
-    if not os.path.isabs(argv[0]):
+    # The DC-4 grammar is explicitly POSIX/Linux even when its pure parser tests
+    # execute on a Windows CI host.
+    if not posixpath.isabs(argv[0]):
         return None, "executable.absolute_path_required"
     return argv, None
 
