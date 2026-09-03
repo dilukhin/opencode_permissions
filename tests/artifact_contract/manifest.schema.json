@@ -14,10 +14,11 @@
     "target": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["product", "exact_version", "compatibility_profile_id"],
+      "required": ["product", "exact_version", "platform", "compatibility_profile_id"],
       "properties": {
         "product": {"const": "opencode"},
         "exact_version": {"type": "string", "minLength": 1},
+        "platform": {"enum": ["linux", "windows"]},
         "compatibility_profile_id": {"type": "string", "minLength": 1}
       }
     },

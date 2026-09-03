@@ -35,6 +35,7 @@ class GateBArtifactContractTests(unittest.TestCase):
 
         profile = copy.deepcopy(self.current_profile)
         profile["deployable"] = True
+        profile["deployable_platforms"] = ["linux"]
         profile["policy_artifact_id"] = "synthetic-bound-by-manifest"
         profile["blocking_reasons"] = []
 
@@ -47,6 +48,7 @@ class GateBArtifactContractTests(unittest.TestCase):
             "target": {
                 "product": "opencode",
                 "exact_version": "1.18.26",
+                "platform": "linux",
                 "compatibility_profile_id": profile["profile_id"],
             },
             "policy_source": {
@@ -73,7 +75,7 @@ class GateBArtifactContractTests(unittest.TestCase):
         manifest["artifact_id"] = contract.compute_artifact_id(manifest)
         return root, profile, manifest, source, output
 
-    def assert_error(self, expected, manifest, profile, root):
+    def assert_error(self, expected, manifest, profile, root, installed_platform="linux"):
         with self.assertRaises(contract.ArtifactContractError) as ctx:
             contract.validate_contract(
                 manifest,
@@ -81,6 +83,7 @@ class GateBArtifactContractTests(unittest.TestCase):
                 "1.18.26",
                 root / "source",
                 root / "artifact",
+                installed_platform=installed_platform,
             )
         self.assertEqual(ctx.exception.code, expected)
 
@@ -93,8 +96,10 @@ class GateBArtifactContractTests(unittest.TestCase):
                 "1.18.26",
                 root / "source",
                 root / "artifact",
+                installed_platform="linux",
             )
             self.assertEqual(result["result"], "VALID_DEPLOYABLE_ARTIFACT_CONTRACT")
+            self.assertEqual(result["platform"], "linux")
 
     def test_current_profile_cannot_deploy(self):
         with tempfile.TemporaryDirectory() as td:
@@ -111,8 +116,34 @@ class GateBArtifactContractTests(unittest.TestCase):
                     "1.18.27",
                     root / "source",
                     root / "artifact",
+                    installed_platform="linux",
                 )
             self.assertEqual(ctx.exception.code, "INSTALLED_VERSION_MISMATCH")
+
+    def test_installed_platform_is_required(self):
+        with tempfile.TemporaryDirectory() as td:
+            root, profile, manifest, _, _ = self.make_fixture(td)
+            with self.assertRaises(contract.ArtifactContractError) as ctx:
+                contract.validate_contract(
+                    manifest,
+                    profile,
+                    "1.18.26",
+                    root / "source",
+                    root / "artifact",
+                )
+            self.assertEqual(ctx.exception.code, "INSTALLED_PLATFORM_REQUIRED")
+
+    def test_installed_platform_mismatch_fails(self):
+        with tempfile.TemporaryDirectory() as td:
+            root, profile, manifest, _, _ = self.make_fixture(td)
+            self.assert_error("INSTALLED_PLATFORM_MISMATCH", manifest, profile, root, installed_platform="windows")
+
+    def test_profile_platform_scope_fails_closed(self):
+        with tempfile.TemporaryDirectory() as td:
+            root, profile, manifest, _, _ = self.make_fixture(td)
+            manifest["target"]["platform"] = "windows"
+            manifest["artifact_id"] = contract.compute_artifact_id(manifest)
+            self.assert_error("PROFILE_NOT_DEPLOYABLE_FOR_PLATFORM", manifest, profile, root, installed_platform="windows")
 
     def test_output_digest_mismatch_fails(self):
         with tempfile.TemporaryDirectory() as td:

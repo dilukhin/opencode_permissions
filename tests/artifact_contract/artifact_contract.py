@@ -48,7 +48,14 @@ def _require(condition, code, detail=None):
         raise ArtifactContractError(code, detail)
 
 
-def validate_contract(manifest, profile, installed_version, source_root, artifact_dir):
+def validate_contract(
+    manifest,
+    profile,
+    installed_version,
+    source_root,
+    artifact_dir,
+    installed_platform=None,
+):
     _require(manifest.get("schema") == 1, "UNSUPPORTED_MANIFEST_SCHEMA")
     _require(
         manifest.get("artifact_format") == "opencode-permission-artifact/v1",
@@ -58,14 +65,20 @@ def validate_contract(manifest, profile, installed_version, source_root, artifac
     _require(manifest.get("status") == "deployable", "ARTIFACT_NOT_DEPLOYABLE")
 
     target = manifest["target"]
+    _require(installed_platform is not None, "INSTALLED_PLATFORM_REQUIRED")
     _require(target.get("product") == "opencode", "WRONG_TARGET_PRODUCT")
     _require(target.get("exact_version") == installed_version, "INSTALLED_VERSION_MISMATCH")
+    _require(target.get("platform") == installed_platform, "INSTALLED_PLATFORM_MISMATCH")
     _require(profile.get("opencode_version") == installed_version, "PROFILE_VERSION_MISMATCH")
     _require(
         target.get("compatibility_profile_id") == profile.get("profile_id"),
         "PROFILE_ID_MISMATCH",
     )
     _require(profile.get("deployable") is True, "PROFILE_NOT_DEPLOYABLE")
+    _require(
+        installed_platform in profile.get("deployable_platforms", []),
+        "PROFILE_NOT_DEPLOYABLE_FOR_PLATFORM",
+    )
 
     constraints = manifest["constraints"]
     _require(constraints.get("exact_version_only") is True, "EXACT_VERSION_REQUIRED")
@@ -117,5 +130,6 @@ def validate_contract(manifest, profile, installed_version, source_root, artifac
         "result": "VALID_DEPLOYABLE_ARTIFACT_CONTRACT",
         "artifact_id": manifest["artifact_id"],
         "exact_version": installed_version,
+        "platform": installed_platform,
         "effective_readback_required": True,
     }

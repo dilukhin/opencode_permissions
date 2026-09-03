@@ -2,6 +2,7 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parent
@@ -39,8 +40,14 @@ class GateBCompatibilityTests(unittest.TestCase):
 
     def test_current_profile_is_not_deployable(self):
         self.assertFalse(self.p26["deployable"])
+        self.assertEqual(self.p26.get("deployable_platforms", []), [])
         with self.assertRaises(gate.CompatibilityError) as ctx:
-            gate.select_profile(REGISTRY, "1.18.26", require_deployable=True)
+            gate.select_profile(
+                REGISTRY,
+                "1.18.26",
+                require_deployable=True,
+                platform="linux",
+            )
         self.assertEqual(ctx.exception.code, "PROFILE_NOT_DEPLOYABLE")
 
     def test_linux_runtime_windows_source_status_with_b_p2_evidence(self):
@@ -52,6 +59,42 @@ class GateBCompatibilityTests(unittest.TestCase):
         self.assertFalse(win["opencode_runtime_executed"])
         self.assertEqual(win["evidence"], "docs/gate_b_windows_peer_identity_probe_ru.md")
         self.assertNotIn("WINDOWS_B_P2_PENDING", self.p26["blocking_reasons"])
+
+    def test_deployable_selection_is_platform_scoped(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            (td / "profiles").mkdir()
+            synthetic = copy.deepcopy(self.p26)
+            synthetic["deployable"] = True
+            synthetic["deployable_platforms"] = ["linux"]
+            (td / "profiles" / "p.json").write_text(json.dumps(synthetic), encoding="utf-8")
+            registry = {
+                "profiles": {"1.18.26": "profiles/p.json"},
+                "unknown_version_result": "UNVALIDATED_OPENCODE_VERSION",
+                "not_deployable_result": "PROFILE_NOT_DEPLOYABLE",
+            }
+            (td / "registry.json").write_text(json.dumps(registry), encoding="utf-8")
+
+            with self.assertRaises(gate.CompatibilityError) as ctx:
+                gate.select_profile(td / "registry.json", "1.18.26", require_deployable=True)
+            self.assertEqual(ctx.exception.code, "DEPLOYABLE_PLATFORM_REQUIRED")
+
+            selected = gate.select_profile(
+                td / "registry.json",
+                "1.18.26",
+                require_deployable=True,
+                platform="linux",
+            )
+            self.assertEqual(selected["opencode_version"], "1.18.26")
+
+            with self.assertRaises(gate.CompatibilityError) as ctx:
+                gate.select_profile(
+                    td / "registry.json",
+                    "1.18.26",
+                    require_deployable=True,
+                    platform="windows",
+                )
+            self.assertEqual(ctx.exception.code, "PROFILE_NOT_DEPLOYABLE_FOR_PLATFORM")
 
     def test_shared_critical_fingerprints_are_identical(self):
         result = gate.compare_fast_path(

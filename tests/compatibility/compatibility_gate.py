@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test-only exact-version compatibility selector for Gate B."""
+"""Test-only exact-version/platform compatibility selector for Gate B."""
 import json
 from pathlib import Path
 
@@ -15,7 +15,7 @@ def load_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def select_profile(registry_path, version, require_deployable=False):
+def select_profile(registry_path, version, require_deployable=False, platform=None):
     registry_path = Path(registry_path)
     registry = load_json(registry_path)
     rel = registry["profiles"].get(version)
@@ -27,8 +27,19 @@ def select_profile(registry_path, version, require_deployable=False):
             "PROFILE_VERSION_MISMATCH",
             {"requested": version, "profile": profile["opencode_version"]},
         )
-    if require_deployable and not profile["deployable"]:
-        raise CompatibilityError(registry["not_deployable_result"], {"version": version})
+    if require_deployable:
+        if not profile.get("deployable"):
+            raise CompatibilityError(
+                registry["not_deployable_result"],
+                {"version": version, "platform": platform},
+            )
+        if platform is None:
+            raise CompatibilityError("DEPLOYABLE_PLATFORM_REQUIRED", {"version": version})
+        if platform not in profile.get("deployable_platforms", []):
+            raise CompatibilityError(
+                "PROFILE_NOT_DEPLOYABLE_FOR_PLATFORM",
+                {"version": version, "platform": platform},
+            )
     return profile
 
 
