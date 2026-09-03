@@ -1,0 +1,670 @@
+{
+  "schema": 1,
+  "format": "native-policy/v1",
+  "target": {
+    "opencode_version": "1.18.26",
+    "permission_semantics": "v1_last_match_wins"
+  },
+  "rule_tuple": [
+    "id",
+    "permission",
+    "pattern",
+    "action"
+  ],
+  "rules": [
+    [
+      "fallback.ask",
+      "*",
+      "*",
+      "ask"
+    ],
+    [
+      "read.workspace.allow",
+      "read",
+      "*",
+      "allow"
+    ],
+    [
+      "read.secret_variant.ask.29a47657",
+      "read",
+      ".env.*",
+      "ask"
+    ],
+    [
+      "read.secret_variant.ask.74400ce9",
+      "read",
+      "*/.env.*",
+      "ask"
+    ],
+    [
+      "read.secret_variant.ask.12453d06",
+      "read",
+      ".npmrc",
+      "ask"
+    ],
+    [
+      "read.secret_variant.ask.9a0a4294",
+      "read",
+      "*/.npmrc",
+      "ask"
+    ],
+    [
+      "read.secret_variant.ask.c663144a",
+      "read",
+      "*auth.json",
+      "ask"
+    ],
+    [
+      "read.secret.deny.dotenv_root",
+      "read",
+      ".env",
+      "deny"
+    ],
+    [
+      "read.secret.deny.dotenv_nested",
+      "read",
+      "*/.env",
+      "deny"
+    ],
+    [
+      "read.secret.deny.id_rsa",
+      "read",
+      "*id_rsa*",
+      "deny"
+    ],
+    [
+      "read.secret.deny.id_ed25519",
+      "read",
+      "*id_ed25519*",
+      "deny"
+    ],
+    [
+      "read.secret.deny.key_ext",
+      "read",
+      "*.key",
+      "deny"
+    ],
+    [
+      "read.secret.deny.p12",
+      "read",
+      "*.p12",
+      "deny"
+    ],
+    [
+      "read.secret.deny.pfx",
+      "read",
+      "*.pfx",
+      "deny"
+    ],
+    [
+      "read.secret.deny.netrc_root",
+      "read",
+      ".netrc",
+      "deny"
+    ],
+    [
+      "read.secret.deny.netrc_nested",
+      "read",
+      "*/.netrc",
+      "deny"
+    ],
+    [
+      "read.secret.deny.gitcred_root",
+      "read",
+      ".git-credentials",
+      "deny"
+    ],
+    [
+      "read.secret.deny.gitcred_nested",
+      "read",
+      "*/.git-credentials",
+      "deny"
+    ],
+    [
+      "glob.allow",
+      "glob",
+      "*",
+      "allow"
+    ],
+    [
+      "bash.pwd.allow",
+      "bash",
+      "pwd",
+      "allow"
+    ],
+    [
+      "bash.git_status.allow",
+      "bash",
+      "git status *",
+      "allow"
+    ],
+    [
+      "bash.git_log5.allow",
+      "bash",
+      "git log -5 --oneline",
+      "allow"
+    ],
+    [
+      "bash.git_show_stat_head.allow",
+      "bash",
+      "git show --stat HEAD",
+      "allow"
+    ],
+    [
+      "bash.git_revparse_head.allow",
+      "bash",
+      "git rev-parse HEAD",
+      "allow"
+    ],
+    [
+      "bash.git_revparse_root.allow",
+      "bash",
+      "git rev-parse --show-toplevel",
+      "allow"
+    ],
+    [
+      "bash.ssh_relay_status.allow",
+      "bash",
+      "ssh_relay status",
+      "allow"
+    ],
+    [
+      "bash.redirect_out.ask",
+      "bash",
+      "*>*",
+      "ask"
+    ],
+    [
+      "bash.redirect_in.ask",
+      "bash",
+      "*<*",
+      "ask"
+    ],
+    [
+      "bash.bash_c.ask",
+      "bash",
+      "bash -c *",
+      "ask"
+    ],
+    [
+      "bash.sh_c.ask",
+      "bash",
+      "sh -c *",
+      "ask"
+    ],
+    [
+      "bash.python_c.ask",
+      "bash",
+      "python -c *",
+      "ask"
+    ],
+    [
+      "bash.python3_c.ask",
+      "bash",
+      "python3 -c *",
+      "ask"
+    ],
+    [
+      "bash.node_e.ask",
+      "bash",
+      "node -e *",
+      "ask"
+    ],
+    [
+      "bash.powershell_command.ask",
+      "bash",
+      "powershell *-Command *",
+      "ask"
+    ],
+    [
+      "bash.pwsh_command.ask",
+      "bash",
+      "pwsh *-Command *",
+      "ask"
+    ],
+    [
+      "bash.cmd_c.ask",
+      "bash",
+      "cmd /c *",
+      "ask"
+    ],
+    [
+      "bash.find_exec.ask",
+      "bash",
+      "find *-exec*",
+      "ask"
+    ],
+    [
+      "bash.xargs.ask",
+      "bash",
+      "xargs *",
+      "ask"
+    ],
+    [
+      "bash.safe_wrapper.ask",
+      "bash",
+      "safe *",
+      "ask"
+    ],
+    [
+      "bash.agent_safe_module.ask",
+      "bash",
+      "python -m agent_safe *",
+      "ask"
+    ],
+    [
+      "bash.agent_safe_module_py3.ask",
+      "bash",
+      "python3 -m agent_safe *",
+      "ask"
+    ],
+    [
+      "bash.relay_exec.ask",
+      "bash",
+      "ssh_relay exec *",
+      "ask"
+    ],
+    [
+      "bash.relay_job.ask",
+      "bash",
+      "ssh_relay job *",
+      "ask"
+    ],
+    [
+      "bash.relay_upload.ask",
+      "bash",
+      "ssh_relay upload *",
+      "ask"
+    ],
+    [
+      "bash.relay_download.ask",
+      "bash",
+      "ssh_relay download *",
+      "ask"
+    ],
+    [
+      "bash.relay_risky.ask",
+      "bash",
+      "ssh_relay --risky *",
+      "ask"
+    ],
+    [
+      "edit.opencode_json_root",
+      "edit",
+      "opencode.json",
+      "deny"
+    ],
+    [
+      "edit.opencode_json_nested",
+      "edit",
+      "*/opencode.json",
+      "deny"
+    ],
+    [
+      "edit.opencode_jsonc_root",
+      "edit",
+      "opencode.jsonc",
+      "deny"
+    ],
+    [
+      "edit.opencode_jsonc_nested",
+      "edit",
+      "*/opencode.jsonc",
+      "deny"
+    ],
+    [
+      "edit.dotopencode_root",
+      "edit",
+      ".opencode/*",
+      "deny"
+    ],
+    [
+      "edit.dotopencode_nested",
+      "edit",
+      "*/.opencode/*",
+      "deny"
+    ],
+    [
+      "edit.dotgit_root",
+      "edit",
+      ".git/*",
+      "deny"
+    ],
+    [
+      "edit.dotgit_nested",
+      "edit",
+      "*/.git/*",
+      "deny"
+    ],
+    [
+      "bash.rm.deny",
+      "bash",
+      "rm *",
+      "deny"
+    ],
+    [
+      "bash.rmdir.deny",
+      "bash",
+      "rmdir *",
+      "deny"
+    ],
+    [
+      "bash.remove_item.deny",
+      "bash",
+      "Remove-Item *",
+      "deny"
+    ],
+    [
+      "bash.del.deny",
+      "bash",
+      "del *",
+      "deny"
+    ],
+    [
+      "bash.erase.deny",
+      "bash",
+      "erase *",
+      "deny"
+    ],
+    [
+      "bash.find_delete.deny",
+      "bash",
+      "find *-delete*",
+      "deny"
+    ],
+    [
+      "bash.xargs_rm.deny",
+      "bash",
+      "xargs *rm*",
+      "deny"
+    ],
+    [
+      "bash.git_reset_hard.deny",
+      "bash",
+      "git reset --hard *",
+      "deny"
+    ],
+    [
+      "bash.git_clean_force_short.deny",
+      "bash",
+      "git clean *-f*",
+      "deny"
+    ],
+    [
+      "bash.git_clean_force_long.deny",
+      "bash",
+      "git clean *--force*",
+      "deny"
+    ],
+    [
+      "bash.git_branch_D.deny",
+      "bash",
+      "git branch -D *",
+      "deny"
+    ],
+    [
+      "bash.git_branch_force_delete.deny",
+      "bash",
+      "git branch *--delete*--force*",
+      "deny"
+    ],
+    [
+      "bash.git_push_force.deny",
+      "bash",
+      "git push *--force*",
+      "deny"
+    ],
+    [
+      "bash.git_push_f.deny",
+      "bash",
+      "git push *-f*",
+      "deny"
+    ],
+    [
+      "bash.sudo.deny",
+      "bash",
+      "sudo *",
+      "deny"
+    ],
+    [
+      "bash.doas.deny",
+      "bash",
+      "doas *",
+      "deny"
+    ],
+    [
+      "bash.su.deny",
+      "bash",
+      "su *",
+      "deny"
+    ],
+    [
+      "bash.start_process_runas.deny",
+      "bash",
+      "Start-Process *-Verb RunAs*",
+      "deny"
+    ],
+    [
+      "bash.systemctl_start.deny",
+      "bash",
+      "systemctl start *",
+      "deny"
+    ],
+    [
+      "bash.systemctl_stop.deny",
+      "bash",
+      "systemctl stop *",
+      "deny"
+    ],
+    [
+      "bash.systemctl_restart.deny",
+      "bash",
+      "systemctl restart *",
+      "deny"
+    ],
+    [
+      "bash.systemctl_enable.deny",
+      "bash",
+      "systemctl enable *",
+      "deny"
+    ],
+    [
+      "bash.systemctl_disable.deny",
+      "bash",
+      "systemctl disable *",
+      "deny"
+    ],
+    [
+      "bash.systemctl_mask.deny",
+      "bash",
+      "systemctl mask *",
+      "deny"
+    ],
+    [
+      "bash.sc_start.deny",
+      "bash",
+      "sc start *",
+      "deny"
+    ],
+    [
+      "bash.sc_stop.deny",
+      "bash",
+      "sc stop *",
+      "deny"
+    ],
+    [
+      "bash.sc_config.deny",
+      "bash",
+      "sc config *",
+      "deny"
+    ],
+    [
+      "bash.sc_delete.deny",
+      "bash",
+      "sc delete *",
+      "deny"
+    ],
+    [
+      "bash.sh_stdin.deny",
+      "bash",
+      "sh",
+      "deny"
+    ],
+    [
+      "bash.bash_stdin.deny",
+      "bash",
+      "bash",
+      "deny"
+    ],
+    [
+      "bash.invoke_expression.deny",
+      "bash",
+      "*Invoke-Expression*",
+      "deny"
+    ],
+    [
+      "bash.iex.deny",
+      "bash",
+      "iex *",
+      "deny"
+    ],
+    [
+      "bash.env_dump.deny",
+      "bash",
+      "env",
+      "deny"
+    ],
+    [
+      "bash.env_dump_args.deny",
+      "bash",
+      "env *",
+      "deny"
+    ],
+    [
+      "bash.printenv.deny",
+      "bash",
+      "printenv",
+      "deny"
+    ],
+    [
+      "bash.printenv_args.deny",
+      "bash",
+      "printenv *",
+      "deny"
+    ],
+    [
+      "bash.ps_env_dump.deny",
+      "bash",
+      "Get-ChildItem *Env:*",
+      "deny"
+    ],
+    [
+      "bash.python_remove.deny",
+      "bash",
+      "python -c *os.remove*",
+      "deny"
+    ],
+    [
+      "bash.python3_remove.deny",
+      "bash",
+      "python3 -c *os.remove*",
+      "deny"
+    ],
+    [
+      "bash.python_rmtree.deny",
+      "bash",
+      "python -c *shutil.rmtree*",
+      "deny"
+    ],
+    [
+      "bash.python3_rmtree.deny",
+      "bash",
+      "python3 -c *shutil.rmtree*",
+      "deny"
+    ],
+    [
+      "bash.powershell_remove.deny",
+      "bash",
+      "powershell *Remove-Item*",
+      "deny"
+    ],
+    [
+      "bash.pwsh_remove.deny",
+      "bash",
+      "pwsh *Remove-Item*",
+      "deny"
+    ],
+    [
+      "bash.cmd_del.deny",
+      "bash",
+      "cmd /c *del *",
+      "deny"
+    ],
+    [
+      "bash.cmd_erase.deny",
+      "bash",
+      "cmd /c *erase *",
+      "deny"
+    ],
+    [
+      "bash.safe_forged_approval.deny",
+      "bash",
+      "safe *--approved*",
+      "deny"
+    ],
+    [
+      "bash.agent_safe_forged_approval.deny",
+      "bash",
+      "python -m agent_safe *--approved*",
+      "deny"
+    ],
+    [
+      "bash.agent_safe_py3_forged_approval.deny",
+      "bash",
+      "python3 -m agent_safe *--approved*",
+      "deny"
+    ],
+    [
+      "bash.safe_rm.deny",
+      "bash",
+      "safe * rm *",
+      "deny"
+    ],
+    [
+      "bash.safe_os_remove.deny",
+      "bash",
+      "safe *os.remove*",
+      "deny"
+    ],
+    [
+      "bash.safe_rmtree.deny",
+      "bash",
+      "safe *shutil.rmtree*",
+      "deny"
+    ],
+    [
+      "bash.agent_safe_rm.deny",
+      "bash",
+      "python -m agent_safe * rm *",
+      "deny"
+    ],
+    [
+      "bash.agent_safe_py3_rm.deny",
+      "bash",
+      "python3 -m agent_safe * rm *",
+      "deny"
+    ],
+    [
+      "bash.relay_rm.deny",
+      "bash",
+      "ssh_relay * rm *",
+      "deny"
+    ],
+    [
+      "bash.relay_sudo_exec.deny",
+      "bash",
+      "ssh_relay sudo-exec *",
+      "deny"
+    ]
+  ]
+}

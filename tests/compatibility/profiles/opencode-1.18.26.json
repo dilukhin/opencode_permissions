@@ -7,7 +7,7 @@
     "tag": "v1.18.26",
     "commit": "774cc7c1914e4329eefde5a669f938b0cf566661"
   },
-  "overall_status": "SOURCE_REVALIDATED",
+  "overall_status": "DEPLOYABLE",
   "platform_status": {
     "linux": "RUNTIME_REVALIDATED",
     "windows": "SOURCE_REVALIDATED"
@@ -44,22 +44,22 @@
     "dangerous_false_safe": 0
   },
   "critical_fingerprints": {
-    "permission_service": {"path": "packages/opencode/src/permission/index.ts", "blob": "2e27ff2424dbb000ea9ed7f73471769716ba40a1"},
-    "tool_context": {"path": "packages/opencode/src/tool/tool.ts", "blob": "e5e7802858ca5cd2250f8f34c4725a25c7a3221d"},
-    "shell_tool": {"path": "packages/opencode/src/tool/shell.ts", "blob": "1e4423e017740617bc6e0df36ad9dcdb0197bccb"},
-    "permission_http": {"path": "packages/opencode/src/server/routes/instance/httpapi/groups/permission.ts", "blob": "79959db499bd12a359ac84a9a189faebc84c016e"},
-    "permission_http_auth": {"path": "packages/opencode/src/server/routes/instance/httpapi/middleware/authorization.ts", "blob": "61ce39ad39e0643758861e82220953399bb6c824"},
-    "wildcard": {"path": "packages/core/src/util/wildcard.ts", "blob": "0a67817bcb58fe33c38073e1120f17e4baf444c7"},
-    "shell_id": {"path": "packages/opencode/src/tool/shell/id.ts", "blob": "061253f8fb5562c2534c58dac42576365fc2d023"},
-    "read_tool": {"path": "packages/opencode/src/tool/read.ts", "blob": "678ed44510488965bacc87238bf8c80f70ad3c07"},
-    "glob_tool": {"path": "packages/opencode/src/tool/glob.ts", "blob": "40d3a27d3cba09911ea247ecaa35cfadef41701c"},
-    "grep_tool": {"path": "packages/opencode/src/tool/grep.ts", "blob": "6ea67124a6f9e56ae66bbafe30c3bcf40e9fe9f8"},
-    "write_tool": {"path": "packages/opencode/src/tool/write.ts", "blob": "37be6d8c47bcec6ecc6c768b2c990e3597333500"},
-    "apply_patch_tool": {"path": "packages/opencode/src/tool/apply_patch.ts", "blob": "3f89a63974b0d1927ac698d5001f7fd04fc79392"},
-    "external_directory_tool": {"path": "packages/opencode/src/tool/external-directory.ts", "blob": "4372db82d89ec76d5fbfc0bd1b272eca96bd492b"},
-    "tool_registry": {"path": "packages/opencode/src/tool/registry.ts", "blob": "9167cb3ea6bc5c8dd075f0f8271adbdec6074b12"},
-    "run_command": {"path": "packages/opencode/src/cli/cmd/run.ts", "blob": "cccc2550179f87bb74763004910028f79ade60c9"},
-    "plugin_tool_contract": {"path": "packages/plugin/src/tool.ts", "blob": "9c6daa34d04ab61dd206360c1f187cfd694e668a"}
+    "permission_service": {"path":"packages/opencode/src/permission/index.ts","blob":"2e27ff2424dbb000ea9ed7f73471769716ba40a1"},
+    "tool_context": {"path":"packages/opencode/src/tool/tool.ts","blob":"e5e7802858ca5cd2250f8f34c4725a25c7a3221d"},
+    "shell_tool": {"path":"packages/opencode/src/tool/shell.ts","blob":"1e4423e017740617bc6e0df36ad9dcdb0197bccb"},
+    "permission_http": {"path":"packages/opencode/src/server/routes/instance/httpapi/groups/permission.ts","blob":"79959db499bd12a359ac84a9a189faebc84c016e"},
+    "permission_http_auth": {"path":"packages/opencode/src/server/routes/instance/httpapi/middleware/authorization.ts","blob":"61ce39ad39e0643758861e82220953399bb6c824"},
+    "wildcard": {"path":"packages/core/src/util/wildcard.ts","blob":"0a67817bcb58fe33c38073e1120f17e4baf444c7"},
+    "shell_id": {"path":"packages/opencode/src/tool/shell/id.ts","blob":"061253f8fb5562c2534c58dac42576365fc2d023"},
+    "read_tool": {"path":"packages/opencode/src/tool/read.ts","blob":"678ed44510488965bacc87238bf8c80f70ad3c07"},
+    "glob_tool": {"path":"packages/opencode/src/tool/glob.ts","blob":"40d3a27d3cba09911ea247ecaa35cfadef41701c"},
+    "grep_tool": {"path":"packages/opencode/src/tool/grep.ts","blob":"6ea67124a6f9e56ae66bbafe30c3bcf40e9fe9f8"},
+    "write_tool": {"path":"packages/opencode/src/tool/write.ts","blob":"37be6d8c47bcec6ecc6c768b2c990e3597333500"},
+    "apply_patch_tool": {"path":"packages/opencode/src/tool/apply_patch.ts","blob":"3f89a63974b0d1927ac698d5001f7fd04fc79392"},
+    "external_directory_tool": {"path":"packages/opencode/src/tool/external-directory.ts","blob":"4372db82d89ec76d5fbfc0bd1b272eca96bd492b"},
+    "tool_registry": {"path":"packages/opencode/src/tool/registry.ts","blob":"9167cb3ea6bc5c8dd075f0f8271adbdec6074b12"},
+    "run_command": {"path":"packages/opencode/src/cli/cmd/run.ts","blob":"cccc2550179f87bb74763004910028f79ade60c9"},
+    "plugin_tool_contract": {"path":"packages/plugin/src/tool.ts","blob":"9c6daa34d04ab61dd206360c1f187cfd694e668a"}
   },
   "verified_semantics": {
     "last_matching_rule_wins": true,
@@ -76,15 +76,16 @@
     "windows_named_pipe_peer_identity_primitive": true,
     "windows_broker_requires_bearer_secret": false
   },
-  "deployable": false,
+  "deployable": true,
   "policy_artifact_id": null,
-  "blocking_reasons": [
-    "CANONICAL_DEPLOYABLE_ARTIFACT_NOT_BUILT",
-    "FINAL_GATE_B_CLOSURE_PENDING"
-  ],
+  "blocking_reasons": [],
   "notes": [
     "Linux runtime revalidation is scoped to the Gate B broker/custom-tool integration proof on the installed 1.18.26 runtime.",
-    "Windows B-P2 runtime evidence proves the named-pipe/process-handle kernel primitive only; OpenCode 1.18.26 was not executed on Windows, so Windows platform status remains SOURCE_REVALIDATED.",
-    "B-P2 is no longer a Gate B blocker."
-  ]
+    "Windows B-P2 runtime evidence proves the named-pipe/process-handle kernel primitive only; OpenCode 1.18.26 was not executed on Windows, so Windows platform status remains SOURCE_REVALIDATED and Windows is not deployable.",
+    "Deployability is platform-scoped. Current deployable platform: linux."
+  ],
+  "deployable_platforms": ["linux"],
+  "policy_artifacts": {
+    "linux": "sha256:d983bb4d5f2b9f9be195267e89d16c27ce45e706a2afeb527d96142c535cc508"
+  }
 }

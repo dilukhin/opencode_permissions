@@ -38,63 +38,42 @@ class GateBCompatibilityTests(unittest.TestCase):
         self.assertEqual(self.registry["selection"], "exact_version_only")
         self.assertFalse(self.registry["nearest_version_fallback"])
 
-    def test_current_profile_is_not_deployable(self):
-        self.assertFalse(self.p26["deployable"])
-        self.assertEqual(self.p26.get("deployable_platforms", []), [])
+    def test_current_profile_is_linux_only_deployable(self):
+        self.assertTrue(self.p26["deployable"])
+        self.assertEqual(self.p26["overall_status"], "DEPLOYABLE")
+        self.assertEqual(self.p26["deployable_platforms"], ["linux"])
+        self.assertIn("linux", self.p26["policy_artifacts"])
+        self.assertEqual(self.p26["blocking_reasons"], [])
+
+        selected = gate.select_profile(
+            REGISTRY,
+            "1.18.26",
+            require_deployable=True,
+            platform="linux",
+        )
+        self.assertEqual(selected["profile_id"], self.p26["profile_id"])
+
         with self.assertRaises(gate.CompatibilityError) as ctx:
             gate.select_profile(
                 REGISTRY,
                 "1.18.26",
                 require_deployable=True,
-                platform="linux",
+                platform="windows",
             )
-        self.assertEqual(ctx.exception.code, "PROFILE_NOT_DEPLOYABLE")
+        self.assertEqual(ctx.exception.code, "PROFILE_NOT_DEPLOYABLE_FOR_PLATFORM")
+
+    def test_deployable_selection_requires_platform(self):
+        with self.assertRaises(gate.CompatibilityError) as ctx:
+            gate.select_profile(REGISTRY, "1.18.26", require_deployable=True)
+        self.assertEqual(ctx.exception.code, "DEPLOYABLE_PLATFORM_REQUIRED")
 
     def test_linux_runtime_windows_source_status_with_b_p2_evidence(self):
-        self.assertEqual(self.p26["overall_status"], "SOURCE_REVALIDATED")
         self.assertEqual(self.p26["platform_status"]["linux"], "RUNTIME_REVALIDATED")
         self.assertEqual(self.p26["platform_status"]["windows"], "SOURCE_REVALIDATED")
         win = self.p26["runtime_observation"]["windows"]
         self.assertEqual(win["result"], "B-P2_PASS")
         self.assertFalse(win["opencode_runtime_executed"])
-        self.assertEqual(win["evidence"], "docs/gate_b_windows_peer_identity_probe_ru.md")
-        self.assertNotIn("WINDOWS_B_P2_PENDING", self.p26["blocking_reasons"])
-
-    def test_deployable_selection_is_platform_scoped(self):
-        with tempfile.TemporaryDirectory() as td:
-            td = Path(td)
-            (td / "profiles").mkdir()
-            synthetic = copy.deepcopy(self.p26)
-            synthetic["deployable"] = True
-            synthetic["deployable_platforms"] = ["linux"]
-            (td / "profiles" / "p.json").write_text(json.dumps(synthetic), encoding="utf-8")
-            registry = {
-                "profiles": {"1.18.26": "profiles/p.json"},
-                "unknown_version_result": "UNVALIDATED_OPENCODE_VERSION",
-                "not_deployable_result": "PROFILE_NOT_DEPLOYABLE",
-            }
-            (td / "registry.json").write_text(json.dumps(registry), encoding="utf-8")
-
-            with self.assertRaises(gate.CompatibilityError) as ctx:
-                gate.select_profile(td / "registry.json", "1.18.26", require_deployable=True)
-            self.assertEqual(ctx.exception.code, "DEPLOYABLE_PLATFORM_REQUIRED")
-
-            selected = gate.select_profile(
-                td / "registry.json",
-                "1.18.26",
-                require_deployable=True,
-                platform="linux",
-            )
-            self.assertEqual(selected["opencode_version"], "1.18.26")
-
-            with self.assertRaises(gate.CompatibilityError) as ctx:
-                gate.select_profile(
-                    td / "registry.json",
-                    "1.18.26",
-                    require_deployable=True,
-                    platform="windows",
-                )
-            self.assertEqual(ctx.exception.code, "PROFILE_NOT_DEPLOYABLE_FOR_PLATFORM")
+        self.assertNotIn("windows", self.p26["deployable_platforms"])
 
     def test_shared_critical_fingerprints_are_identical(self):
         result = gate.compare_fast_path(
@@ -116,9 +95,8 @@ class GateBCompatibilityTests(unittest.TestCase):
         self.assertEqual(result["result"], "TARGETED_REAUDIT_REQUIRED")
         self.assertEqual(result["changed_fingerprints"], ["permission_service"])
 
-    def test_profiles_do_not_contain_artifact_or_secret_material(self):
+    def test_profiles_do_not_contain_secret_material(self):
         for profile in (self.p18, self.p26):
-            self.assertIsNone(profile["policy_artifact_id"])
             text = json.dumps(profile).lower()
             for forbidden in ("password", "api_key", "private_key", "authorization_header"):
                 self.assertNotIn(forbidden, text)

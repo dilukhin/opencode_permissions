@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test-only validator for the Gate B canonical artifact contract."""
+"""Validator for the Gate B canonical artifact contract."""
 import hashlib
 import json
 from pathlib import Path
@@ -43,6 +43,12 @@ def compute_artifact_id(manifest):
     return "sha256:" + hashlib.sha256(DOMAIN + payload).hexdigest()
 
 
+def artifact_path_segment(artifact_id):
+    if not isinstance(artifact_id, str) or not artifact_id.startswith("sha256:"):
+        raise ArtifactContractError("INVALID_ARTIFACT_ID")
+    return "sha256-" + artifact_id.split(":", 1)[1]
+
+
 def _require(condition, code, detail=None):
     if not condition:
         raise ArtifactContractError(code, detail)
@@ -79,6 +85,17 @@ def validate_contract(
         installed_platform in profile.get("deployable_platforms", []),
         "PROFILE_NOT_DEPLOYABLE_FOR_PLATFORM",
     )
+    _require(
+        profile.get("policy_artifacts", {}).get(installed_platform) == manifest.get("artifact_id"),
+        "PROFILE_ARTIFACT_ID_MISMATCH",
+    )
+
+    expected_segment = artifact_path_segment(manifest.get("artifact_id"))
+    _require(
+        manifest.get("artifact_path_segment") == expected_segment,
+        "ARTIFACT_PATH_SEGMENT_MISMATCH",
+    )
+    _require(Path(artifact_dir).name == expected_segment, "ARTIFACT_DIRECTORY_MISMATCH")
 
     constraints = manifest["constraints"]
     _require(constraints.get("exact_version_only") is True, "EXACT_VERSION_REQUIRED")
@@ -129,6 +146,7 @@ def validate_contract(
     return {
         "result": "VALID_DEPLOYABLE_ARTIFACT_CONTRACT",
         "artifact_id": manifest["artifact_id"],
+        "artifact_path_segment": expected_segment,
         "exact_version": installed_version,
         "platform": installed_platform,
         "effective_readback_required": True,

@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "artifact_format": "opencode-permission-artifact/v1",
+  "artifact_id": "sha256:d983bb4d5f2b9f9be195267e89d16c27ce45e706a2afeb527d96142c535cc508",
+  "status": "deployable",
+  "owner": "dilukhin/opencode_permissions",
+  "target": {
+    "product": "opencode",
+    "exact_version": "1.18.26",
+    "platform": "linux",
+    "compatibility_profile_id": "opencode-1.18.26-gate-b"
+  },
+  "policy_source": {
+    "path": "policy/native/rules.v1.json",
+    "sha256": "b7af96ecefd9fce341d128073f1bccae8b66c72e544bf0f47ccbb024232c3490"
+  },
+  "renderer": {
+    "id": "opencode-v1-permission-renderer",
+    "version": 1
+  },
+  "output": {
+    "relative_path": "permission.jsonc",
+    "sha256": "9d14d0697c88fc0b005d04d2f114da44bb58f5527f4646bd96afc981d3838ada"
+  },
+  "constraints": {
+    "exact_version_only": true,
+    "requires_deployable_profile": true,
+    "nearest_version_fallback": false,
+    "setup_semantic_rewrite": false,
+    "effective_readback_required": true,
+    "competing_effective_layer_result": "CONFLICT"
+  },
+  "artifact_path_segment": "sha256-d983bb4d5f2b9f9be195267e89d16c27ce45e706a2afeb527d96142c535cc508"
+}
