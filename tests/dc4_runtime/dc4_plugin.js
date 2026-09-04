@@ -47,6 +47,15 @@ function key(sessionID, callID) {
 export const DC4ProofPlugin = async ({ client, directory }) => {
   const calls = new Map()
 
+  async function reply(request, response) {
+    const result = await client.postSessionIdPermissionsPermissionId({
+      path: { id: request.sessionID, permissionID: request.id },
+      body: { response },
+      query: { directory },
+    })
+    if (result?.error) throw new Error("DC4_PERMISSION_REPLY_FAILED")
+  }
+
   return {
     "tool.execute.before": async (input, output) => {
       if (input.tool !== "bash") return
@@ -73,7 +82,7 @@ export const DC4ProofPlugin = async ({ client, directory }) => {
       trace("permission_asked", { callID: callID || null })
       if (!state || request?.metadata?.command !== state.command) {
         trace("correlation_reject", { callID: callID || null })
-        await client.permission.reply({ requestID: request.id, reply: "reject" })
+        await reply(request, "reject")
         return
       }
       try {
@@ -85,18 +94,18 @@ export const DC4ProofPlugin = async ({ client, directory }) => {
           operationIdentity: payload?.result?.operation_identity || null,
         })
         if (decision !== "ALLOW" || !payload.guard) {
-          await client.permission.reply({ requestID: request.id, reply: "reject" })
+          await reply(request, "reject")
           trace("permission_reply_reject", { callID })
           return
         }
         state.guard = payload.guard
         if (scenario === "classifier_env_drift") process.env.DC4_TEST_DRIFT = "1"
-        await client.permission.reply({ requestID: request.id, reply: "once" })
+        await reply(request, "once")
         trace("permission_reply_once", { callID })
       } catch {
         trace("classifier_error", { callID })
         try {
-          await client.permission.reply({ requestID: request.id, reply: "reject" })
+          await reply(request, "reject")
         } catch {}
       }
     },
