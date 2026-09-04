@@ -25,6 +25,7 @@ SCENARIOS = {
     "classifier_env_drift": ("ask", "/usr/bin/printf DC4_DRIFT_BLOCK", "DC4_DRIFT_BLOCK"),
 }
 LOCAL_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+GITIGNORE = "node_modules\npackage.json\npackage-lock.json\nbun.lock\n.gitignore\n"
 
 
 def free_port() -> int:
@@ -201,7 +202,14 @@ def scenario_terminal(name: str, trace_events: list[dict[str, Any]], parts: list
     return False
 
 
-def wait_scenario(base: str, directory: str, session_id: str, trace: Path, name: str, timeout: int = 30) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def wait_scenario(
+    base: str,
+    directory: str,
+    session_id: str,
+    trace: Path,
+    name: str,
+    timeout: int = 30,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     deadline = time.monotonic() + timeout
     last_events: list[dict[str, Any]] = []
     last_parts: list[dict[str, Any]] = []
@@ -232,7 +240,9 @@ def assert_scenario(name: str, trace_events: list[dict[str, Any]], parts: list[d
             raise AssertionError(f"native_allow: classifier/ASK path unexpectedly observed: {names}")
         if names.count("shell_env_native_passthrough") != 1 or names.count("tool_after") != 1:
             raise AssertionError(f"native_allow: expected native execution path: {names}")
-        if not sentinel_completed or not any(e.get("event") == "tool_after" and e.get("outputMatched") for e in trace_events):
+        if not sentinel_completed or not any(
+            e.get("event") == "tool_after" and e.get("outputMatched") for e in trace_events
+        ):
             raise AssertionError("native_allow: execution sentinel missing")
         return
 
@@ -251,8 +261,7 @@ def assert_scenario(name: str, trace_events: list[dict[str, Any]], parts: list[d
             raise AssertionError("native_deny: denied sentinel executed")
         return
 
-    required_prefix = ["tool_before", "permission_asked", "classifier_result", "permission_reply_once"]
-    for required in required_prefix:
+    for required in ["tool_before", "permission_asked", "classifier_result", "permission_reply_once"]:
         if names.count(required) != 1:
             raise AssertionError(f"{name}: missing/duplicate {required}: {names}")
     classifier = next(e for e in trace_events if e.get("event") == "classifier_result")
@@ -262,7 +271,9 @@ def assert_scenario(name: str, trace_events: list[dict[str, Any]], parts: list[d
     if name == "classifier_allow":
         if names.count("shell_env_guard_pass") != 1 or names.count("tool_after") != 1:
             raise AssertionError(f"classifier_allow: guard/execution path incomplete: {names}")
-        if not sentinel_completed or not any(e.get("event") == "tool_after" and e.get("outputMatched") for e in trace_events):
+        if not sentinel_completed or not any(
+            e.get("event") == "tool_after" and e.get("outputMatched") for e in trace_events
+        ):
             raise AssertionError("classifier_allow: execution sentinel missing")
         return
 
@@ -277,6 +288,35 @@ def assert_scenario(name: str, trace_events: list[dict[str, Any]], parts: list[d
     raise AssertionError(f"unknown scenario {name}")
 
 
+def prepare_offline_config_dirs(project: Path, home: Path, plugin_source: Path) -> tuple[Path, Path]:
+    """Create readable but non-writable config dirs so exact 1.18.26 skips npm reify."""
+    opencode_dir = project / ".opencode"
+    plugin_dir = opencode_dir / "plugins"
+    plugin_dir.mkdir(parents=True)
+    shutil.copy2(plugin_source, plugin_dir / "dc4_plugin.js")
+    (opencode_dir / ".gitignore").write_text(GITIGNORE, encoding="utf-8")
+
+    global_config = home / ".config" / "opencode"
+    global_config.mkdir(parents=True)
+    (global_config / "config.json").write_text(
+        json.dumps({"$schema": "https://opencode.ai/config.json"}),
+        encoding="utf-8",
+    )
+    (global_config / ".gitignore").write_text(GITIGNORE, encoding="utf-8")
+
+    os.chmod(opencode_dir, 0o555)
+    os.chmod(global_config, 0o555)
+    return opencode_dir, global_config
+
+
+def restore_config_dirs(dirs: tuple[Path, Path]) -> None:
+    for directory in dirs:
+        try:
+            os.chmod(directory, 0o755)
+        except FileNotFoundError:
+            pass
+
+
 def run_scenario(opencode: str, repo_root: Path, name: str) -> dict[str, Any]:
     action, command, sentinel = SCENARIOS[name]
     with tempfile.TemporaryDirectory(prefix=f"dc4-{name}-") as tmp, mock_provider(command) as provider_port:
@@ -285,9 +325,11 @@ def run_scenario(opencode: str, repo_root: Path, name: str) -> dict[str, Any]:
         home = root / "home"
         project.mkdir()
         home.mkdir()
-        plugin_dir = project / ".opencode" / "plugins"
-        plugin_dir.mkdir(parents=True)
-        shutil.copy2(repo_root / "tests" / "dc4_runtime" / "dc4_plugin.js", plugin_dir / "dc4_plugin.js")
+        locked_dirs = prepare_offline_config_dirs(
+            project,
+            home,
+            repo_root / "tests" / "dc4_runtime" / "dc4_plugin.js",
+        )
         trace = root / "trace.jsonl"
 
         config = {
@@ -305,7 +347,10 @@ def run_scenario(opencode: str, repo_root: Path, name: str) -> dict[str, Any]:
                             "limit": {"context": 32000, "output": 4096},
                         }
                     },
-                    "options": {"apiKey": "dc4-local-test", "baseURL": f"http://127.0.0.1:{provider_port}/v1"},
+                    "options": {
+                        "apiKey": "dc4-local-test",
+                        "baseURL": f"http://127.0.0.1:{provider_port}/v1",
+                    },
                 }
             },
         }
@@ -341,7 +386,12 @@ def run_scenario(opencode: str, repo_root: Path, name: str) -> dict[str, Any]:
         try:
             wait_server(base, str(project), server)
             session_rule = {"permission": "bash", "pattern": command, "action": action}
-            session = http_json("POST", base + "/session", directory=str(project), payload={"title": f"DC4 {name}", "permission": [session_rule]})
+            session = http_json(
+                "POST",
+                base + "/session",
+                directory=str(project),
+                payload={"title": f"DC4 {name}", "permission": [session_rule]},
+            )
             session_id = session["id"]
             http_json(
                 "POST",
@@ -369,6 +419,7 @@ def run_scenario(opencode: str, repo_root: Path, name: str) -> dict[str, Any]:
             except subprocess.TimeoutExpired:
                 server.kill()
                 server.wait(timeout=5)
+            restore_config_dirs(locked_dirs)
 
 
 def main() -> int:
@@ -377,7 +428,12 @@ def main() -> int:
     parser.add_argument("--repo-root", default=str(Path(__file__).resolve().parents[2]))
     args = parser.parse_args()
     repo_root = Path(args.repo_root).resolve()
-    version = subprocess.run([args.opencode, "--version"], check=True, text=True, capture_output=True).stdout.strip()
+    version = subprocess.run(
+        [args.opencode, "--version"],
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout.strip()
     if version != "1.18.26":
         raise SystemExit(f"DC-4 requires exact OpenCode 1.18.26, got {version!r}")
 
