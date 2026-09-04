@@ -226,6 +226,17 @@ class DC2AnalyzerTests(unittest.TestCase):
         self.assertEqual(identityless_auto_allow, 0)
         self.assertGreaterEqual(sound_safe_promotions, 7)
 
+    def test_sound_safe_prompt_capture_exceeds_gate_b_baseline(self):
+        rows = [(case, self.combined(case)[0]) for case in self.projection["cases"]]
+        safe_cases = sum(case["safety"] == "safe" for case, _ in rows)
+        safe_auto_captured = sum(
+            case["safety"] == "safe" and combined["decision"] == "ALLOW"
+            for case, combined in rows
+        )
+
+        self.assertEqual((safe_auto_captured, safe_cases), (9, 13))
+        self.assertGreater(safe_auto_captured / safe_cases, 6 / 11)
+
 
 if __name__ == "__main__":
     unittest.main()
