@@ -24,6 +24,7 @@ SCENARIOS = {
     "classifier_allow": ("ask", "/usr/bin/printf DC4_CLASSIFIER_ALLOW", "DC4_CLASSIFIER_ALLOW"),
     "classifier_env_drift": ("ask", "/usr/bin/printf DC4_DRIFT_BLOCK", "DC4_DRIFT_BLOCK"),
 }
+LOCAL_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 def free_port() -> int:
@@ -142,7 +143,7 @@ def http_json(method: str, url: str, *, directory: str, payload: Any | None = No
         headers["content-type"] = "application/json"
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with LOCAL_OPENER.open(request, timeout=timeout) as response:
             raw = response.read()
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", "replace")
