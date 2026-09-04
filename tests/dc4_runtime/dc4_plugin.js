@@ -8,24 +8,35 @@ const python = process.env.DC4_PYTHON || "python3"
 const scenario = process.env.DC4_SCENARIO || "unknown"
 const workspaceRoot = process.env.DC4_WORKSPACE_ROOT
 const shell = "/bin/dash"
+const declaredEnvDependencies = ["OPENCODE_PERMISSIONS_DC4_AUTHZ_DEP"]
 
 function trace(event, fields = {}) {
   if (!tracePath) return
   fs.appendFileSync(tracePath, JSON.stringify({ event, scenario, ...fields }) + "\n")
 }
 
-function snapshotEnv() {
-  return Object.fromEntries(Object.entries(process.env).sort(([a], [b]) => a.localeCompare(b)))
+function snapshotDeclaredEnv() {
+  return Object.fromEntries(
+    declaredEnvDependencies.map((name) => [name, Object.prototype.hasOwnProperty.call(process.env, name) ? process.env[name] : null]),
+  )
 }
 
-function sameEnv(left, right) {
-  const a = Object.keys(left).sort()
-  const b = Object.keys(right).sort()
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i] || left[a[i]] !== right[b[i]]) return false
+function sameDeclaredEnv(left, right) {
+  return declaredEnvDependencies.every((name) => left?.[name] === right?.[name])
+}
+
+function restoreDeclaredEnv(snapshot) {
+  for (const name of declaredEnvDependencies) {
+    const value = snapshot?.[name]
+    if (value === null || value === undefined) delete process.env[name]
+    else process.env[name] = value
   }
-  return true
+}
+
+function introduceDeclaredEnvDrift(snapshot) {
+  const name = declaredEnvDependencies[0]
+  const previous = snapshot?.[name]
+  process.env[name] = previous === "__dc4_declared_env_drift__" ? "__dc4_declared_env_drift_2__" : "__dc4_declared_env_drift__"
 }
 
 function prepare(command, cwd) {
@@ -67,7 +78,7 @@ export const DC4ProofPlugin = async ({ client, directory }) => {
         callID: input.callID,
         command,
         cwd,
-        env: snapshotEnv(),
+        envDependencies: snapshotDeclaredEnv(),
         guard: null,
       })
       trace("tool_before", { callID: input.callID })
@@ -99,7 +110,7 @@ export const DC4ProofPlugin = async ({ client, directory }) => {
           return
         }
         state.guard = payload.guard
-        if (scenario === "classifier_env_drift") process.env.DC4_TEST_DRIFT = "1"
+        if (scenario === "classifier_env_drift") introduceDeclaredEnvDrift(state.envDependencies)
         await reply(request, "once")
         trace("permission_reply_once", { callID })
       } catch {
@@ -121,9 +132,14 @@ export const DC4ProofPlugin = async ({ client, directory }) => {
         trace("shell_env_native_passthrough", { callID: callID || null })
         return
       }
-      if (Object.keys(output?.env || {}).length !== 0 || !sameEnv(state.env, snapshotEnv())) {
+      if (Object.keys(output?.env || {}).length !== 0) {
         trace("shell_env_guard_reject", { callID, reason: "environment_drift" })
-        delete process.env.DC4_TEST_DRIFT
+        restoreDeclaredEnv(state.envDependencies)
+        throw new Error("DC4_ENVIRONMENT_DRIFT")
+      }
+      if (!sameDeclaredEnv(state.envDependencies, snapshotDeclaredEnv())) {
+        trace("shell_env_guard_reject", { callID, reason: "environment_drift" })
+        restoreDeclaredEnv(state.envDependencies)
         throw new Error("DC4_ENVIRONMENT_DRIFT")
       }
       const fresh = prepare(state.command, state.cwd)
