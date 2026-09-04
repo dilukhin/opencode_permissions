@@ -63,4 +63,4 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python tests/dc4_runtime/debug_probe.py --opencode "$DC4_OPENCODE" --repo-root "$GITHUB_WORKSPACE"
+          python tests/dc4_runtime/run_probe.py --opencode "$DC4_OPENCODE" --repo-root "$GITHUB_WORKSPACE"
