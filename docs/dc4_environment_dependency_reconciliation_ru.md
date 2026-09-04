@@ -1,6 +1,6 @@
 # DC-4 environment dependency reconciliation
 
-Статус: **IMPLEMENTATION CANDIDATE / CI REQUIRED**.
+Статус: **PASS**.
 
 Этот документ уточняет только environment-binding часть `docs/dc4_exact_opencode_adapter_ru.md` после принятия `docs/default_threat_model_ru.md` и `docs/architecture_simplicity_reconciliation_ru.md`.
 
@@ -94,15 +94,15 @@ declared authorization dependency changed
 
 Реальные environment dependencies будущих analyzers должны определяться отдельно и минимально.
 
-## 7. Acceptance
+## 7. Acceptance result
 
-F3 считается реализованным только если одновременно:
+Подтверждено одновременно:
 
-1. source regression подтверждает отсутствие full `process.env` enumeration;
+1. source regression запрещает full `process.env` enumeration;
 2. declared dependency присутствует явно;
-3. exact OpenCode 1.18.26 runtime `classifier_allow` всё ещё PASS;
-4. declared dependency drift всё ещё блокирует до spawn;
+3. exact OpenCode 1.18.26 runtime `classifier_allow` остаётся PASS;
+4. declared dependency drift блокирует до spawn;
 5. все Linux/Windows regression jobs PASS;
 6. production permission policy не меняется.
 
-После PASS этот документ supersedes только broad full-environment-snapshot interpretation DC-4; остальные DC-4 evidence остаются действующими.
+Этот документ supersedes только broad full-environment-snapshot interpretation DC-4; остальные DC-4 evidence остаются действующими.
