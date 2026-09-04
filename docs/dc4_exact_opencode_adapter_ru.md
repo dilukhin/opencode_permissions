@@ -2,13 +2,13 @@
 
 Статус: **PASS** для ограниченного Linux-профиля, описанного ниже.
 
-Этот документ фиксирует доказанный runtime-path DC-4. Он не является production deployment guide и не расширяет native permission policy.
+Этот документ фиксирует доказанный authorization-binding path внутри фактического runtime OpenCode. Он не является production deployment guide, не расширяет native permission policy и не переносит execution-safety обязанности `agent-safe` в `opencode_permissions`.
 
 ## 1. Цель
 
 DC-4 закрывает разрыв между детерминированным classifier core/analyzers и фактическим OpenCode permission lifecycle:
 
-`native ASK -> trusted adapter -> deterministic classifier -> exact ALLOW -> reply once -> pre-spawn revalidation -> ShellTool execution`
+`native ASK -> trusted adapter -> deterministic classifier -> exact ALLOW -> reply once -> authorization-binding revalidation -> ShellTool execution`
 
 При этом сохраняются инварианты проекта:
 
@@ -17,8 +17,28 @@ DC-4 закрывает разрыв между детерминированны
 - classifier вызывается только из native `ASK`;
 - classifier не получает право исполнения как отдельную capability;
 - unsupported/opaque input не становится `ALLOW`;
-- изменение среды или identity после classifier result блокирует выполнение до spawn;
+- если command/identity/environment, на которые было выдано разрешение, изменились до запуска, разрешение больше не считается относящимся к фактической операции;
 - `--auto`, `--yolo`, `dangerously-skip-permissions` и blanket `bash: allow` не используются.
+
+### 1.1 Граница с `agent-safe`
+
+Проверка перед запуском в DC-4 имеет **только authorization-binding смысл**:
+
+> действительно ли фактическая операция всё ещё является той самой операцией, для которой `opencode_permissions` выдал решение `ALLOW`.
+
+`opencode_permissions` не владеет общим безопасным выполнением уже разрешённого изменения и не должен дублировать `agent-safe`.
+
+Вне ответственности DC-4 и всего `opencode_permissions` остаются:
+
+- классификация ресурсов как `temporary` / `normal` / `protected`;
+- lifecycle ресурсов (`present` / `trashed` / `deleted` и аналогичные состояния);
+- выбор trash/retention/permanent-delete стратегии;
+- журналирование фактических изменений и необратимых действий;
+- post-mutation verification;
+- recovery после partial/unexpected result;
+- runtime-sensitive safety preconditions, относящиеся не к валидности authorization binding, а к безопасному исполнению уже разрешённой mutation.
+
+Эти обязанности принадлежат `agent-safe` согласно cross-project integration contract.
 
 ## 2. Exact runtime profile
 
@@ -68,20 +88,22 @@ Semantic analyzer получает доказанное имя команды т
 
 ### 3.2 Shell и cwd identity
 
-Guard также связывает:
+Authorization binding также включает:
 
 - requested/resolved shell и его object identity;
 - cwd lexical path и object identity;
 - workspace boundary;
 - итоговый `operation_identity`.
 
-### 3.3 Runtime guard
+### 3.3 Authorization-binding guard
 
-После classifier `ALLOW` adapter сохраняет guard, содержащий exact command, shell, executable, cwd и `operation_identity`.
+После classifier `ALLOW` adapter сохраняет binding guard, содержащий exact command, shell, executable, cwd и `operation_identity`.
 
-Непосредственно перед ShellTool spawn выполняется повторная `prepare()`-проверка. Для продолжения требуется полное равенство нового guard исходному. Любой identity drift переводит path в fail-closed error до выполнения команды.
+Непосредственно перед ShellTool spawn выполняется повторная `prepare()`-проверка. Для продолжения требуется полное равенство нового binding guard исходному. Любой identity drift означает, что ранее выданное разрешение больше не относится к фактической операции, и path завершается fail-closed до выполнения команды.
 
-Кроме этого, adapter-path связывает process environment snapshot. Изменение environment между classifier result и spawn также блокирует выполнение.
+Кроме этого, adapter-path связывает process environment snapshot, поскольку в доказанном профиле environment входит в условия идентичности разрешённого execution path. Изменение environment между classifier result и spawn поэтому инвалидирует authorization binding.
+
+Это **не** общий runtime-safety механизм. Он не решает, безопасно ли выполнять уже разрешённое изменение, не управляет ресурсами, rollback, verification или recovery и не заменяет `agent-safe`.
 
 ## 4. Интеграция с фактическим OpenCode permission lifecycle
 
@@ -96,8 +118,8 @@ Project-local proof plugin:
 5. запускает deterministic adapter;
 6. при результате, отличном от exact `ALLOW`, отвечает `reject`;
 7. при exact `ALLOW` отвечает только `once`;
-8. на `shell.env` выполняет pre-spawn revalidation;
-9. при drift бросает fail-closed error до spawn.
+8. на `shell.env` выполняет pre-execution authorization-binding revalidation;
+9. при invalidated binding бросает fail-closed error до spawn.
 
 ### 4.1 Exact legacy SDK reply
 
@@ -163,12 +185,14 @@ Native rule для exact command = `ask`.
 - exact call-ID/command correlation;
 - deterministic classifier возвращает `ALLOW` с валидным `sha256:` operation identity;
 - legacy SDK reply `once`;
-- `shell.env` guard успешно повторно подтверждает operation identity и environment;
+- `shell.env` повторно подтверждает authorization binding для operation identity и environment;
 - команда реально выполняется;
 - exact sentinel присутствует;
 - `tool.execute.after` наблюдается.
 
 В trace `shell_env_guard_pass` может появиться раньше post-`await` marker `permission_reply_once`: продолжение permission deferred способно начать ShellTool continuation до возврата HTTP/SDK call в plugin handler. Acceptance поэтому проверяет наличие обеих стадий и terminal execution result, а не ошибочно трактует порядок trace-записей как порядок authorization transition.
+
+Название trace event `shell_env_guard_pass` является implementation label; архитектурно эта проверка трактуется только как authorization-binding revalidation.
 
 ### 5.4 ASK -> classifier ALLOW -> environment drift
 
@@ -182,11 +206,11 @@ Native rule для exact command = `ask`.
 - reply `once` инициирует continuation;
 - `shell.env` фиксирует `environment_drift`;
 - tool заканчивается error;
-- guard pass отсутствует;
+- binding guard pass отсутствует;
 - `tool.execute.after` отсутствует;
 - sentinel не выполняется.
 
-Это доказывает fail-closed TOCTOU guard для доказанного environment dependency.
+Это доказывает fail-closed invalidation разрешения при изменении доказанной environment dependency. Это не является доказательством общего execution-safety или recovery механизма.
 
 ## 6. Изоляция runtime fixture
 
@@ -217,7 +241,10 @@ DC-4 **не** означает:
 - production deployment permission policy;
 - безопасность direct `SessionPrompt.shell` как model-tool authorization path;
 - право auditor/model самостоятельно разрешать выполнение;
-- возможность обходить native DENY.
+- возможность обходить native DENY;
+- владение lifecycle временных/обычных/защищённых ресурсов;
+- реализацию trash/retention/permanent-delete policy;
+- post-mutation verification, rollback/recovery или safe cleanup вместо `agent-safe`.
 
 Неподдерживаемая форма остаётся `ASK_USER`.
 
@@ -231,9 +258,9 @@ DC-4 считается PASS только если одновременно вы
 4. native ASK проходит через real `permission.asked` и exact call-ID/command correlation;
 5. classifier `ALLOW` имеет complete normalized operation и `operation_identity`;
 6. reply ограничен `once`;
-7. pre-spawn shell/executable/cwd/environment revalidation проходит для неизменённой операции;
-8. environment drift блокирует до spawn;
+7. pre-execution shell/executable/cwd/environment authorization-binding revalidation проходит для неизменённой операции;
+8. environment/identity drift инвалидирует binding и блокирует до spawn;
 9. unsupported adapter input остаётся non-ALLOW;
 10. общий regression suite остаётся зелёным на поддерживаемой CI matrix.
 
-При выполнении этих условий DC-4 закрывает runtime-integration criterion deterministic classifier gate для exact Linux/OpenCode 1.18.26 profile.
+При выполнении этих условий DC-4 закрывает authorization-binding integration criterion deterministic classifier gate для exact Linux/OpenCode 1.18.26 profile.

@@ -156,6 +156,33 @@ Owner: `agent-safe`.
 
 Preflight не формирует `ALLOW/ASK/DENY`.
 
+### 7.1 Authorization binding и execution safety — разные проверки
+
+`opencode_permissions` может выполнять узкую pre-execution revalidation только для ответа на вопрос:
+
+> фактическая операция всё ещё совпадает с той `NormalizedOperation`, для которой было выдано authorization решение/grant?
+
+Такая проверка является частью **authorization binding**, а не общей execution safety. Она может повторно связать только свойства, входящие в authorization identity/contract, например exact payload, target/effects identity и доказанные execution dependencies. Если они изменились, прежнее разрешение инвалидируется и execution не продолжается по этому grant.
+
+Эта возможность **не переносит** в `opencode_permissions` обязанности `agent-safe`.
+
+Владельцем `agent-safe` остаются:
+
+- runtime-sensitive safety preconditions уже разрешённой mutation;
+- resource lifecycle и классификация ресурсов, включая любые temporary/normal/protected-подобные классы;
+- trash/retention/permanent-delete strategy;
+- smallest safe mutation;
+- receipt/journal фактического действия;
+- post-mutation verification;
+- runtime reject по execution-safety причинам;
+- recovery/incident handling после partial, unexpected или unknown result.
+
+Инвариант ownership:
+
+> `opencode_permissions` решает, можно ли разрешить операцию, и проверяет, что фактическая операция не подменилась после решения; `agent-safe` отвечает за безопасное выполнение уже разрешённого state-changing действия, проверку результата и recovery.
+
+Classifier, auditor или authorization adapter не должны реализовывать resource lifecycle, cleanup, trash, verification или recovery как альтернативу `agent-safe`.
+
 ## 8. `ExecutionResult`
 
 Owner: `agent-safe`.
@@ -206,14 +233,17 @@ Transport возвращает correlation/job identity и observable evidence, 
 5. hard-deny/native/authorization evaluation
 6. ALLOW or ASK_USER or DENY
 7. successful decision -> trusted exact-bound authorization handoff
-8. agent-safe revalidates runtime-sensitive preconditions
-9. smallest mutation
-10. if remote: ssh_relay transports and returns RemoteOutcome
-11. agent-safe verifies expected state
-12. DONE / RUNTIME_REJECT / UNEXPECTED
+8. opencode_permissions/authorization adapter confirms binding still matches the authorized operation, where required by the proven profile
+9. agent-safe revalidates execution-safety runtime preconditions
+10. smallest mutation
+11. if remote: ssh_relay transports and returns RemoteOutcome
+12. agent-safe verifies expected state
+13. DONE / RUNTIME_REJECT / UNEXPECTED
 ```
 
 Для hard deny execution path не начинается.
+
+Шаг 8 не заменяет шаг 9: первый защищает authorization identity от substitution/drift, второй защищает фактическое выполнение уже разрешённой mutation.
 
 ## 11. Direct native path и controlled path
 
