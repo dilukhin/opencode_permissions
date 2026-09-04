@@ -16,11 +16,28 @@ native deterministic rules
 ## Границы проекта
 
 - `opencode_permissions` — permission policy, command/effect classification, approval semantics и experiments;
-- [`agent-safe`](https://github.com/dilukhin/agent-safe) — runtime-защита risky state-changing действий, verify/recovery;
+- [`agent-safe`](https://github.com/dilukhin/agent-safe) — runtime-защита risky state-changing действий, resource lifecycle, verify/recovery;
 - [`opencode_setup`](https://github.com/dilukhin/opencode_setup) — installation/reconciliation/integration;
 - [`ssh_relay`](https://github.com/dilukhin/ssh_relay) — remote transport/machine contract.
 
 Проект не должен дублировать runtime-функции этих компонентов без доказанной необходимости.
+
+Каноническая компактная граница `opencode_permissions` / `agent-safe`:
+[`docs/opencode_permissions_agent_safe_boundary_ru.md`](docs/opencode_permissions_agent_safe_boundary_ru.md).
+
+Коротко:
+
+```text
+opencode_permissions:
+  можно ли разрешить именно эту операцию,
+  и всё ли ещё фактическая операция совпадает с разрешённой?
+
+agent-safe:
+  как безопасно выполнить уже разрешённое изменение,
+  проверить результат и восстановиться при проблеме?
+```
+
+Temporary/trash/delete/retention/verification/recovery semantics принадлежат `agent-safe`, а не `opencode_permissions`.
 
 ## Источники истины
 
@@ -89,13 +106,40 @@ Artifact **не установлен** автоматически в live OpenCo
 
 Windows B-P2 kernel peer/lifecycle primitive — `PASS`, но OpenCode 1.18.26 runtime на Windows не был runtime-revalidated, поэтому Windows отсутствует в `deployable_platforms`.
 
-### Следующий gate
+### Deterministic classifier gate
 
-**Deterministic parser/effect analysis — NOT STARTED.**
+**CLOSED для доказанного Linux / exact OpenCode 1.18.26 profile.**
 
-Он должен добавляться только для gaps, которые доказанно не покрывает native layer, и обязан сохранять Gate B hard-deny/fail-closed invariants.
+Formal closure:
+[`docs/deterministic_classifier_gate_closure_ru.md`](docs/deterministic_classifier_gate_closure_ru.md).
 
-Model auditor остаётся `NOT STARTED` до отдельного gate.
+DC-0…DC-4 закрыли:
+
+- `NormalizedOperation` identity;
+- deterministic result/composition core;
+- bounded analyzers;
+- wrapper/remote recursive analysis;
+- exact OpenCode authorization-binding runtime proof.
+
+Classifier sound projection:
+
+```text
+safe combined ALLOW: 9 / 13 = 69.2%
+Gate B native baseline: 6 / 11 = 54.5%
+```
+
+Знаменатели относятся к разным фиксированным наборам и не смешиваются.
+
+### Auditor
+
+**NOT STARTED.**
+
+Перед началом auditor проводится architecture-simplicity review: нужно доказать, что residual gray zone действительно значим в практической работе и не закрывается более простым native/deterministic решением.
+
+Review document:
+[`docs/architecture_simplicity_audit_ru.md`](docs/architecture_simplicity_audit_ru.md).
+
+Production permission configuration по-прежнему не изменена classifier-ом.
 
 ## Актуальные документы
 
@@ -106,21 +150,31 @@ Persistent project sources:
 - [`opencode_permissions_agent_guide_ru.md`](opencode_permissions_agent_guide_ru.md)
 - [`github_project_bootstrap.md`](github_project_bootstrap.md)
 
-Gate B:
+Current architecture/closure:
 
+- [`docs/opencode_permissions_agent_safe_boundary_ru.md`](docs/opencode_permissions_agent_safe_boundary_ru.md)
+- [`docs/cross_project_integration_contract_v1_ru.md`](docs/cross_project_integration_contract_v1_ru.md)
 - [`docs/gate_b_final_closure_ru.md`](docs/gate_b_final_closure_ru.md)
+- [`docs/deterministic_classifier_gate_closure_ru.md`](docs/deterministic_classifier_gate_closure_ru.md)
+- [`docs/dc4_exact_opencode_adapter_ru.md`](docs/dc4_exact_opencode_adapter_ru.md)
+
+Current review/findings:
+
+- [`docs/architecture_simplicity_audit_ru.md`](docs/architecture_simplicity_audit_ru.md)
+
+Gate B implementation/evidence includes:
+
 - [`docs/gate_b_native_policy_integration_design_ru.md`](docs/gate_b_native_policy_integration_design_ru.md)
 - [`docs/gate_b_native_policy_candidate_metrics_ru.md`](docs/gate_b_native_policy_candidate_metrics_ru.md)
 - [`docs/gate_b_compatibility_profiles_ru.md`](docs/gate_b_compatibility_profiles_ru.md)
 - [`docs/gate_b_canonical_artifact_contract_ru.md`](docs/gate_b_canonical_artifact_contract_ru.md)
-- [`docs/gate_b_authorization_broker_contract_ru.md`](docs/gate_b_authorization_broker_contract_ru.md)
-- [`docs/gate_b_linux_opencode_broker_probe_ru.md`](docs/gate_b_linux_opencode_broker_probe_ru.md)
-- [`docs/gate_b_windows_peer_identity_probe_ru.md`](docs/gate_b_windows_peer_identity_probe_ru.md)
+
+Broker/peer-identity documents are retained as Gate B research/high-assurance evidence; they must not be read as proof that a production broker is the selected default architecture.
 
 Machine-readable evidence:
 
 - [`tests/permission_cases/`](tests/permission_cases/) — 69-case corpus;
-- [`tests/native_policy/`](tests/native_policy/) — native projection/matcher candidate evidence;
+- [`tests/native_policy/`](tests/native_policy/) — native projection/matcher evidence;
 - [`tests/normalized_operation/`](tests/normalized_operation/) — NormalizedOperation identity fixtures;
 - [`tests/compatibility/`](tests/compatibility/) — exact-version/platform profiles;
 - [`tests/artifact_contract/`](tests/artifact_contract/) — artifact validation contract.
@@ -134,5 +188,6 @@ Machine-readable evidence:
 - Dangerous negative cases проверяются parser-only/mock/temp/synthetic, а не destructive execution.
 - Secrets не раскрываются ради анализа.
 - Model auditor никогда не получает execution authority.
+- Authorization layer не дублирует resource lifecycle, verification и recovery `agent-safe`.
 
 Документация и рабочее общение проекта ведутся преимущественно по-русски; code identifiers и machine-readable fields — преимущественно по-английски.
