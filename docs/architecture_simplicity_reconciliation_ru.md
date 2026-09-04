@@ -15,8 +15,8 @@
 | F1 broker как default | **ACCEPT** | kernel-authenticated broker остаётся high-assurance research/option; default production path не обязан его иметь |
 | F2 полный content hash executable | **ACCEPT** | сохранить как доказательный/high-assurance механизм; не считать обязательным default contract |
 | F3 full process environment snapshot | **ACCEPT / IMPLEMENTED IN DC-4 PROOF** | default binding учитывает только явно объявленные authorization-relevant environment dependencies; full env enumeration удалён из proof fixture |
-| F4 build/test слишком недоверенные | **ACCEPT DIRECTION / DESIGN REQUIRED** | нужен technical trusted-workspace fact; до его доказательства текущий ASK не ослаблять |
-| F5 read-only Git overly hardened | **ACCEPT DIRECTION / DEPENDS ON F4** | в trusted repository/workspace можно рассмотреть обычные read-only Git families; в untrusted profile сохранить hardened/ASK |
+| F4 build/test слишком недоверенные | **CONSUMER CONTRACT PASS / PRODUCER PENDING** | WorkspaceTrustFact schema/exact matcher реализованы без policy widening; первый trust-conditioned ALLOW запрещён до trusted producer/integration proof |
+| F5 read-only Git overly hardened | **ACCEPT DIRECTION / DEPENDS ON F4 PRODUCER** | в trusted repository/workspace можно рассмотреть обычные read-only Git families; в untrusted profile сохранить hardened/ASK |
 | F6 exact-version profile explosion | **ACCEPT** | exact version selection сохраняется, но evidence/fingerprint contracts можно переиспользовать между версиями после explicit revalidation; nearest-version fallback запрещён |
 | F7 auditor преждевременен | **ACCEPT** | auditor откладывается до managed pilot и измерения residual ASK |
 | F8 speculative wire contracts | **ACCEPT** | новые межпроектные schemas проектируются just-in-time для реального producer/consumer |
@@ -88,31 +88,47 @@ Durable evidence:
 
 ## 4. F4 — trusted workspace
 
-Направление принято, но blanket `trusted_workspace=true` запрещён.
+Consumer-contract часть завершена без изменения policy.
 
-До изменения build/test policy нужен отдельный design/acceptance slice, который определит:
-
-- кто создаёт trust fact;
-- где он хранится;
-- почему модель не может сама его выставить;
-- к какому exact workspace/repository identity он относится;
-- как trust инвалидируется при смене target/workspace;
-- какие command families получает право упростить;
-- какие hard-deny/secrets boundaries trust никогда не ослабляет.
-
-Предпочтительный owner факта — managed setup/user configuration plane, а не classifier input от модели.
-
-Пока этот contract не доказан:
+Реализовано:
 
 ```text
-cmake --build / ctest / pytest -> текущая conservative policy сохраняется
+tools/workspace_trust.py
+tests/test_workspace_trust.py
+docs/trusted_workspace_fact_design_ru.md
 ```
+
+Закреплено:
+
+- `trusted=true` из caller/model input не является proof;
+- fact validity не равна provider authenticity;
+- exact match требует platform/requested root/resolved root/object identity;
+- content hash всего репозитория не требуется;
+- scopes ограничены `build/test/static_check/git_read`;
+- wildcard/all/delete/system scopes запрещены;
+- TTL/generation/broker не добавляются без evidence необходимости;
+- Windows path matching остаётся conservative, без case folding.
+
+Текущая build/test policy **не изменена**:
+
+```text
+cmake --build / ctest / pytest -> ASK_USER
+```
+
+До первого trust-conditioned ALLOW остаётся отдельный producer/integration gate:
+
+- кто создаёт/revokes trust;
+- где/как хранится authoritative state;
+- почему model-controlled path не может автоматически выдать себе trust;
+- runtime acquisition observed workspace identity;
+- paired build/test policy corpus;
+- managed setup integration.
 
 ## 5. F5 — read-only Git
 
-Не реализуется отдельно от F4.
+Не реализуется отдельно от F4 producer/integration boundary.
 
-После появления trusted repository/workspace fact можно проверить две политики:
+После появления authenticated trusted repository/workspace fact можно проверить две политики:
 
 ```text
 trusted repository:
@@ -210,8 +226,9 @@ Research не удаляется, но не задаёт default architecture б
 ```text
 1. threat-model/document reconciliation                         DONE
 2. убрать full-env binding, заменить declared dependency        DONE
-3. design trusted-workspace fact, без policy widening           NEXT
-4. подготовить minimal managed pilot contract для opencode_setup
+3a. trusted-workspace consumer contract                         DONE
+3b. trusted-workspace producer/integration boundary             NEXT
+4. minimal managed pilot contract
 5. pilot + residual ASK metrics
 6. deterministic/native tuning
 7. auditor только при доказанной необходимости
