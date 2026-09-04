@@ -1,6 +1,6 @@
 # Trusted workspace fact — design и acceptance
 
-Статус: **DESIGN CANDIDATE / NO POLICY WIDENING**.
+Статус: **CONSUMER CONTRACT PASS / PRODUCER INTEGRATION PENDING / NO POLICY WIDENING**.
 
 Этот slice реализует F4 из `architecture_simplicity_reconciliation_ru.md` только на уровне consumer contract и deterministic matching.
 
@@ -243,7 +243,7 @@ Plain `git diff` и другие read-only Git commands получают отд�
 
 ## 11. Security negative cases
 
-Обязательные tests consumer contract:
+Executable regression покрывает:
 
 - unknown schema -> reject;
 - unknown trust class -> reject;
@@ -255,20 +255,28 @@ Plain `git diff` и другие read-only Git commands получают отд�
 - resolved root substitution -> no match;
 - object identity substitution -> no match;
 - missing observed field -> no match;
-- caller-supplied `trusted=true` не участвует в contract;
-- fact JSON сам по себе не доказывает trusted provider authenticity.
+- caller-supplied `trusted=true` -> invalid shape;
+- fact JSON сам по себе не получает признак provider authenticity;
+- Windows path matching остаётся case-sensitive/conservative.
 
-## 12. Acceptance этого slice
+## 12. Acceptance result
 
-F4 consumer-contract slice PASS, если:
+Consumer-contract slice PASS:
 
 1. schema/validator deterministic;
 2. exact matcher fail-closed;
-3. никакого classifier/native decision widening;
-4. all current safety metrics unchanged;
-5. Linux/Windows unit matrix PASS;
+3. classifier/native decisions не расширялись;
+4. текущие safety regressions остаются зелёными;
+5. Linux/Windows Python matrix PASS;
 6. документация явно отделяет validity от authenticity;
 7. future producer/integration остаётся отдельным gate.
+
+Implementation evidence:
+
+```text
+tools/workspace_trust.py
+tests/test_workspace_trust.py
+```
 
 ## 13. Что нужно перед первым trust-conditioned ALLOW
 
