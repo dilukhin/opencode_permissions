@@ -2,7 +2,7 @@
 
 Статус: **CLOSED** для доказанного Linux / OpenCode 1.18.26 profile.
 
-Этот документ фиксирует closure deterministic classifier stage после DC-0…DC-4. Он не означает запуск auditor stage и не означает production deployment permission policy.
+Этот документ фиксирует closure deterministic classifier stage после DC-0…DC-4. Он не означает запуск auditor stage, не означает production deployment permission policy и не переносит execution-safety функции `agent-safe` в `opencode_permissions`.
 
 ## 1. Закрываемый gate
 
@@ -81,8 +81,8 @@ Runtime acceptance подтверждает:
 
 - terminal native ALLOW без classifier;
 - terminal native DENY без execution;
-- real native ASK -> `permission.asked` -> deterministic classifier exact ALLOW -> one-shot reply -> pre-spawn revalidation -> execution;
-- post-classification environment drift -> fail closed до spawn;
+- real native ASK -> `permission.asked` -> deterministic classifier exact ALLOW -> one-shot reply -> authorization-binding revalidation -> execution;
+- post-classification environment/identity drift -> authorization binding invalidated -> fail closed до spawn;
 - exact call-ID/command binding;
 - exact version-sensitive legacy permission reply path;
 - отсутствие `--auto`, broad shell allow и destructive test execution.
@@ -139,7 +139,40 @@ Closure runtime evidence относится только к:
 
 Classifier implementation шире этой одной runtime command family за счёт DC-0…DC-3 deterministic tests, однако production deployability любой дополнительной family должна следовать собственному version/profile/target contract и не выводится автоматически из DC-4 `printf` proof.
 
-## 6. Version-sensitive boundaries
+## 6. Граница ответственности с `agent-safe`
+
+DC-4 выполняет pre-execution проверку только в той мере, в какой она необходима для **валидности authorization binding**:
+
+> фактическая операция, которая сейчас продолжает execution path, должна совпадать с операцией, которой `opencode_permissions` разрешил выполнение.
+
+Поэтому `opencode_permissions` может повторно проверить command, operation identity и те shell/executable/cwd/environment dependencies, которые входят в доказанный authorization contract. Если они изменились, прежний `ALLOW` инвалидируется.
+
+Это не даёт `opencode_permissions` ownership над общим безопасным исполнением уже разрешённой mutation.
+
+Owner `agent-safe` остаётся для:
+
+- runtime execution-safety preconditions после authorization;
+- temporary/normal/protected resource semantics;
+- trash/retention/permanent-delete lifecycle;
+- smallest safe mutation;
+- журналирования фактического действия;
+- post-mutation expected-state verification;
+- runtime reject по safety preconditions;
+- recovery/incident handling после partial, unexpected или unknown result.
+
+Практическое правило разделения:
+
+```text
+opencode_permissions:
+  «Это действие можно разрешить, и фактическая операция всё ещё совпадает с разрешённой?»
+
+agent-safe:
+  «Как выполнить уже разрешённое state-changing действие безопасно, проверить результат и восстановиться при проблеме?»
+```
+
+Ни DC-4 adapter, ни будущий auditor не должны реализовывать resource lifecycle или recovery вместо `agent-safe`.
+
+## 7. Version-sensitive boundaries
 
 Closure не переносится автоматически на другую OpenCode version.
 
@@ -153,7 +186,7 @@ Closure не переносится автоматически на другую
 
 Semver similarity сама по себе не является evidence.
 
-## 7. Explicit non-claims
+## 8. Explicit non-claims
 
 Closure deterministic classifier gate **не означает**:
 
@@ -165,9 +198,10 @@ Closure deterministic classifier gate **не означает**:
 - что model/auditor получает право исполнения;
 - что auditor stage начат;
 - что остаточные ASK-зоны должны автоматически исчезнуть;
+- что temporary/trash/delete/verify/recovery semantics принадлежат `opencode_permissions`;
 - что runtime responsibilities `agent-safe`, `opencode_setup` или `ssh_relay` переносятся в этот repository.
 
-## 8. Gate checklist
+## 9. Gate checklist
 
 | Criterion | Status |
 |---|---|
@@ -180,11 +214,12 @@ Closure deterministic classifier gate **не означает**:
 | Wrapper/remote handling does not create blanket trust | PASS |
 | Unsupported/opaque input fails closed to ASK | PASS |
 | Safe prompt capture exceeds Gate B 54.5% baseline | PASS — 69.2% |
-| Exact Linux/OpenCode 1.18.26 non-destructive runtime integration | PASS |
+| Exact Linux/OpenCode 1.18.26 non-destructive authorization-binding integration | PASS |
+| `agent-safe` execution-safety ownership preserved | PASS |
 | Auditor absent from execution/approval path | PASS |
 | Production permission config unchanged | PASS |
 
-## 9. Closure decision
+## 10. Closure decision
 
 **Deterministic classifier gate CLOSED for the proven Linux/OpenCode 1.18.26 profile.**
 
@@ -197,6 +232,7 @@ Auditor не может:
 - отменять native/classifier hard DENY;
 - создавать execution capability;
 - превращать unknown в ALLOW без отдельного технически доказанного contract;
-- подменять operation identity, target/effect binding или runtime revalidation.
+- подменять operation identity, target/effect binding или authorization-binding revalidation;
+- брать на себя resource lifecycle, execution verification или recovery функции `agent-safe`.
 
 До отдельного deployment gate production permission policy остаётся без изменений.
