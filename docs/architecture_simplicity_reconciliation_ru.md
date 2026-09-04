@@ -14,7 +14,7 @@
 |---|---|---|
 | F1 broker как default | **ACCEPT** | kernel-authenticated broker остаётся high-assurance research/option; default production path не обязан его иметь |
 | F2 полный content hash executable | **ACCEPT** | сохранить как доказательный/high-assurance механизм; не считать обязательным default contract |
-| F3 full process environment snapshot | **ACCEPT + IMPLEMENT NEXT** | default binding должен учитывать только явно объявленные authorization-relevant environment dependencies; чтение всего env не является default requirement |
+| F3 full process environment snapshot | **ACCEPT / IMPLEMENTED IN DC-4 PROOF** | default binding учитывает только явно объявленные authorization-relevant environment dependencies; full env enumeration удалён из proof fixture |
 | F4 build/test слишком недоверенные | **ACCEPT DIRECTION / DESIGN REQUIRED** | нужен technical trusted-workspace fact; до его доказательства текущий ASK не ослаблять |
 | F5 read-only Git overly hardened | **ACCEPT DIRECTION / DEPENDS ON F4** | в trusted repository/workspace можно рассмотреть обычные read-only Git families; в untrusted profile сохранить hardened/ASK |
 | F6 exact-version profile explosion | **ACCEPT** | exact version selection сохраняется, но evidence/fingerprint contracts можно переиспользовать между версиями после explicit revalidation; nearest-version fallback запрещён |
@@ -62,7 +62,7 @@ DC-4 полный SHA-256 системного executable сохраняется
 
 > Authorization связывается не со всем `process.env`, а только с теми environment facts, от которых реально зависит смысл/исполнение доказанного operation profile.
 
-Новый logical contract:
+Логический contract:
 
 ```yaml
 authorization_environment_dependencies:
@@ -74,7 +74,17 @@ authorization_environment_dependencies:
 
 Secret-like values не должны автоматически копироваться в operation identity, trace или approval context.
 
-DC-4 fixture будет изменена отдельно так, чтобы проверять declared dependency drift без snapshot всего окружения.
+F3 реализован в DC-4 proof:
+
+- full `process.env` enumeration удалён;
+- synthetic declared dependency проверяет механизм drift invalidation;
+- неожиданный `shell.env` injection остаётся fail-closed;
+- source regression запрещает возврат broad snapshot;
+- exact OpenCode runtime proof и Linux/Windows regression matrix остаются PASS.
+
+Durable evidence:
+
+`docs/dc4_environment_dependency_reconciliation_ru.md`.
 
 ## 4. F4 — trusted workspace
 
@@ -195,12 +205,12 @@ Research не удаляется, но не задаёт default architecture б
 
 ## 11. Следующая последовательность
 
-Принята последовательность:
+Текущее состояние последовательности:
 
 ```text
-1. threat-model/document reconciliation
-2. убрать full-env binding из DC-4 proof, заменить declared dependency
-3. design trusted-workspace fact (без policy widening до acceptance)
+1. threat-model/document reconciliation                         DONE
+2. убрать full-env binding, заменить declared dependency        DONE
+3. design trusted-workspace fact, без policy widening           NEXT
 4. подготовить minimal managed pilot contract для opencode_setup
 5. pilot + residual ASK metrics
 6. deterministic/native tuning
