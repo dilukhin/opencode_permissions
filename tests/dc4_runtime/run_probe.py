@@ -198,7 +198,7 @@ def scenario_terminal(name: str, trace_events: list[dict[str, Any]], parts: list
     if name == "classifier_allow":
         return "completed" in states and "shell_env_guard_pass" in names and "tool_after" in names
     if name == "classifier_env_drift":
-        return "error" in states and "shell_env_guard_reject" in names
+        return "error" in states and "shell_env_guard_reject" in names and "permission_reply_once" in names
     return False
 
 
