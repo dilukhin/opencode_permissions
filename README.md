@@ -13,6 +13,19 @@ native deterministic rules
 
 Жёсткий `DENY` имеет приоритет и не может быть отменён model auditor. Неизвестный эффект не считается безопасным.
 
+## Практическая модель угроз
+
+Default-режим проекта — технические **перила**, а не универсальная sandbox/host-integrity система.
+
+Он защищает от ошибочных или слишком широких model-controlled операций, self-approval, скрытых nested effects, unknown/opaque payload, authorization substitution и несовместимого effective permission state.
+
+Он не обязан по умолчанию защищать от уже скомпрометированного trusted plugin/host, malware того же OS-user, root/admin/kernel compromise или полного sandboxing пользовательского build/test code.
+
+Канонический документ:
+[`docs/default_threat_model_ru.md`](docs/default_threat_model_ru.md).
+
+High-assurance механизмы допустимы как отдельный профиль, но не становятся default requirement без конкретной доказанной угрозы.
+
 ## Границы проекта
 
 - `opencode_permissions` — permission policy, command/effect classification, approval semantics и experiments;
@@ -130,14 +143,28 @@ Gate B native baseline: 6 / 11 = 54.5%
 
 Знаменатели относятся к разным фиксированным наборам и не смешиваются.
 
+### Architecture-simplicity reconciliation
+
+Аудит на переусложнение завершён на уровне архитектурных решений.
+
+Принятые решения:
+
+- kernel authorization broker — **optional high-assurance**, не обязательный default path;
+- полный executable content hash — proof/high-assurance механизм, не default requirement;
+- full `process.env` binding будет заменён explicit environment dependencies;
+- trusted-workspace направление принято, но **не расширяет ALLOW до отдельного design/acceptance**;
+- exact-version fail-closed сохраняется, evidence может переиспользовать capability/fingerprint contracts только после explicit revalidation;
+- новые cross-project wire schemas — just-in-time;
+- auditor отложен до managed pilot и реальных residual-ASK metrics.
+
+Accepted decisions:
+[`docs/architecture_simplicity_reconciliation_ru.md`](docs/architecture_simplicity_reconciliation_ru.md).
+
 ### Auditor
 
-**NOT STARTED.**
+**NOT STARTED / DEFERRED BY POLICY.**
 
-Перед началом auditor проводится architecture-simplicity review: нужно доказать, что residual gray zone действительно значим в практической работе и не закрывается более простым native/deterministic решением.
-
-Review document:
-[`docs/architecture_simplicity_audit_ru.md`](docs/architecture_simplicity_audit_ru.md).
+Auditor не проектируется только потому, что он следующий блок старой схемы. Сначала нужен ограниченный managed pilot уже готовых native + deterministic механизмов, реальные residual ASK и проверка более дешёвых deterministic улучшений.
 
 Production permission configuration по-прежнему не изменена classifier-ом.
 
@@ -150,26 +177,23 @@ Persistent project sources:
 - [`opencode_permissions_agent_guide_ru.md`](opencode_permissions_agent_guide_ru.md)
 - [`github_project_bootstrap.md`](github_project_bootstrap.md)
 
-Current architecture/closure:
+Current architecture/contracts:
 
+- [`docs/default_threat_model_ru.md`](docs/default_threat_model_ru.md)
 - [`docs/opencode_permissions_agent_safe_boundary_ru.md`](docs/opencode_permissions_agent_safe_boundary_ru.md)
+- [`docs/architecture_simplicity_reconciliation_ru.md`](docs/architecture_simplicity_reconciliation_ru.md)
 - [`docs/cross_project_integration_contract_v1_ru.md`](docs/cross_project_integration_contract_v1_ru.md)
+
+Current implementation/closure:
+
 - [`docs/gate_b_final_closure_ru.md`](docs/gate_b_final_closure_ru.md)
 - [`docs/deterministic_classifier_gate_closure_ru.md`](docs/deterministic_classifier_gate_closure_ru.md)
 - [`docs/dc4_exact_opencode_adapter_ru.md`](docs/dc4_exact_opencode_adapter_ru.md)
 
-Current review/findings:
+Review/history:
 
-- [`docs/architecture_simplicity_audit_ru.md`](docs/architecture_simplicity_audit_ru.md)
-
-Gate B implementation/evidence includes:
-
-- [`docs/gate_b_native_policy_integration_design_ru.md`](docs/gate_b_native_policy_integration_design_ru.md)
-- [`docs/gate_b_native_policy_candidate_metrics_ru.md`](docs/gate_b_native_policy_candidate_metrics_ru.md)
-- [`docs/gate_b_compatibility_profiles_ru.md`](docs/gate_b_compatibility_profiles_ru.md)
-- [`docs/gate_b_canonical_artifact_contract_ru.md`](docs/gate_b_canonical_artifact_contract_ru.md)
-
-Broker/peer-identity documents are retained as Gate B research/high-assurance evidence; they must not be read as proof that a production broker is the selected default architecture.
+- [`docs/architecture_simplicity_audit_ru.md`](docs/architecture_simplicity_audit_ru.md) — review findings, resolved by reconciliation document above;
+- broker/peer-identity documents — Gate B research/high-assurance evidence, not proof that a production broker is selected as default architecture.
 
 Machine-readable evidence:
 
@@ -189,5 +213,6 @@ Machine-readable evidence:
 - Secrets не раскрываются ради анализа.
 - Model auditor никогда не получает execution authority.
 - Authorization layer не дублирует resource lifecycle, verification и recovery `agent-safe`.
+- High-assurance research не превращается в default requirement без явного threat-model решения.
 
 Документация и рабочее общение проекта ведутся преимущественно по-русски; code identifiers и machine-readable fields — преимущественно по-английски.
