@@ -56,6 +56,7 @@ function verifyBundle() {
   if (manifest.artifact_path_segment !== `sha256-${expectedArtifactId.slice("sha256:".length)}`) {
     throw new Error("P0_BUNDLE_PATH_SEGMENT_MISMATCH")
   }
+  if (path.basename(root) !== manifest.artifact_path_segment) throw new Error("P0_BUNDLE_DIRECTORY_MISMATCH")
 
   if (!Array.isArray(manifest.files) || manifest.files.length === 0) throw new Error("P0_BUNDLE_FILES_MISSING")
   for (const item of manifest.files) {
@@ -221,6 +222,7 @@ export const OpenCodePermissionsP0 = async ({ client, directory }) => {
       if (!state?.guard) return
 
       if (!(await exactRuntimeReady())) throw new Error("P0_RUNTIME_PROFILE_DRIFT")
+      if (input.cwd !== state.cwd) throw new Error("P0_CWD_BINDING_DRIFT")
       if (Object.keys(output?.env || {}).length !== 0) throw new Error("P0_ENVIRONMENT_TRANSFORM_UNEXPECTED")
 
       let payload
@@ -228,7 +230,7 @@ export const OpenCodePermissionsP0 = async ({ client, directory }) => {
         payload = runAdapter(
           bundle,
           "revalidate",
-          ["--command", state.command, "--cwd", state.cwd, "--workspace-root", directory],
+          ["--command", state.command, "--cwd", input.cwd, "--workspace-root", directory],
           state.guard,
         )
       } catch {
