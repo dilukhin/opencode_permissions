@@ -1,10 +1,30 @@
 {
-  "schema": 1,
-  "status": "test_registry_not_deployable",
+  "schema": 2,
+  "status": "compatibility_registry",
   "selection": "exact_version_only",
   "nearest_version_fallback": false,
   "unknown_version_result": "UNVALIDATED_OPENCODE_VERSION",
   "not_deployable_result": "PROFILE_NOT_DEPLOYABLE",
+  "current_target": "1.18.29",
+  "runtime_revalidated_baseline": "1.18.26",
+  "critical_fingerprint_keys": [
+    "permission_service",
+    "tool_context",
+    "shell_tool",
+    "permission_http",
+    "permission_http_auth",
+    "wildcard",
+    "shell_id",
+    "read_tool",
+    "glob_tool",
+    "grep_tool",
+    "write_tool",
+    "apply_patch_tool",
+    "external_directory_tool",
+    "tool_registry",
+    "run_command",
+    "plugin_tool_contract"
+  ],
   "fast_path_shared_fingerprints": [
     "permission_service",
     "tool_context",
@@ -14,6 +34,7 @@
   ],
   "profiles": {
     "1.18.18": "profiles/opencode-1.18.18.json",
-    "1.18.26": "profiles/opencode-1.18.26.json"
+    "1.18.26": "profiles/opencode-1.18.26.json",
+    "1.18.29": "profiles/opencode-1.18.29.json"
   }
 }
