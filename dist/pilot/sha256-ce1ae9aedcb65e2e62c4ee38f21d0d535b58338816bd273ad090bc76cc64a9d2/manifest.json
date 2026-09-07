@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "artifact_format": "opencode-permissions-pilot-artifact/v1",
+  "artifact_id": "sha256:ce1ae9aedcb65e2e62c4ee38f21d0d535b58338816bd273ad090bc76cc64a9d2",
+  "status": "mp0_ready",
+  "owner": "dilukhin/opencode_permissions",
+  "target": {
+    "product": "opencode",
+    "exact_version": "1.18.29",
+    "platform": "linux",
+    "compatibility_profile_id": "opencode-1.18.29-gate-b",
+    "compatibility_family_id": "sha256:171d981f8853ca935d982899b15f3933964f8174e1a1d644f820d048fa07536f"
+  },
+  "native_policy_artifact_id": "sha256:b38090e07008fb174607aa2a924cfef1dd26d03bdb339a379b1a770397a8ad84",
+  "classifier_profile": {
+    "id": "p0-linux-grep-single-file-v1",
+    "relative_path": "profile.json",
+    "sha256": "4a36305e84084b286ee994d4288f01d3381795fd0f4be3abd4bc7c44f04f92b5"
+  },
+  "files": [
+    {
+      "path": "bridge.js",
+      "sha256": "8770a9a22f3960a539380fe8e646e55d8dc628bd1ade1d4e5e25ff4239564ade",
+      "size": 8998
+    },
+    {
+      "path": "profile.json",
+      "sha256": "4a36305e84084b286ee994d4288f01d3381795fd0f4be3abd4bc7c44f04f92b5",
+      "size": 3318
+    },
+    {
+      "path": "runtime/classifier_analyzers.py",
+      "sha256": "dcba85e70c7c7659e7b786a7d5e54c4f1b24441f008ef25be7a1195b8b8532c9",
+      "size": 18183
+    },
+    {
+      "path": "runtime/classifier_core.py",
+      "sha256": "139f6ae5735806eb2d809a775708f34f74f507379640348c059783a683a78889",
+      "size": 16598
+    },
+    {
+      "path": "runtime/normalized_operation_identity.py",
+      "sha256": "d59435c8309157485841ed87f4d3d79fb6093acd83a69fcc1afa5bcff34e5168",
+      "size": 9145
+    },
+    {
+      "path": "runtime/opencode_p0_adapter.py",
+      "sha256": "c68981ba981eab160e3b849afeb8d4e6a11cc63328321e0b1d665d9a74413a56",
+      "size": 14074
+    }
+  ],
+  "constraints": {
+    "exact_version_only": true,
+    "requires_deployable_profile": true,
+    "nearest_version_fallback": false,
+    "setup_semantic_rewrite": false,
+    "managed_global_plugin_required": true,
+    "developer_checkout_dependency": false,
+    "auditor_enabled": false,
+    "workspace_trust_enabled": false,
+    "state_changing_classifier_enabled": false,
+    "classifier_error_result": "ASK_USER",
+    "competing_effective_layer_result": "CONFLICT",
+    "runtime_bundle_digest_check": true
+  },
+  "artifact_path_segment": "sha256-ce1ae9aedcb65e2e62c4ee38f21d0d535b58338816bd273ad090bc76cc64a9d2"
+}
