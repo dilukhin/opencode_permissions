@@ -91,6 +91,13 @@ class P0PilotArtifactPlanTests(unittest.TestCase):
         self.assertIn('"once"', source)
         self.assertIn('"reject"', source)
 
+    def test_committed_artifact_is_exact_materialization_of_current_plan(self):
+        result = artifact.validate_committed_artifact(ROOT)
+        self.assertEqual(result["result"], "MP0_ARTIFACT_VALID")
+        self.assertEqual(result["artifact_id"], self.plan["artifact_id"])
+        self.assertEqual(result["artifact_path"], self.plan["artifact_path"])
+        self.assertEqual(result["opencode_version"], self.plan["manifest"]["target"]["exact_version"])
+
     def test_print_plan_for_review_and_artifact_materialization(self):
         public = {
             "artifact_id": self.plan["artifact_id"],
