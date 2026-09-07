@@ -85,6 +85,9 @@ class P0PilotArtifactPlanTests(unittest.TestCase):
         self.assertIn('import.meta.url', source)
         self.assertIn('manifest.json', source)
         self.assertIn('client.global.health()', source)
+        self.assertIn('path.basename(root) !== manifest.artifact_path_segment', source)
+        self.assertIn('input.cwd !== state.cwd', source)
+        self.assertIn('["--command", state.command, "--cwd", input.cwd, "--workspace-root", directory]', source)
         self.assertIn('"once"', source)
         self.assertIn('"reject"', source)
 
