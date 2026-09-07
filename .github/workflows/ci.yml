@@ -79,4 +79,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python tests/dc4_runtime/run_probe.py --opencode "$OPENCODE_RUNTIME_BINARY" --repo-root "$GITHUB_WORKSPACE"
+          python tests/compatibility/run_runtime_revalidation.py \
+            --opencode "$OPENCODE_RUNTIME_BINARY" \
+            --expected-version "$OPENCODE_TARGET_VERSION" \
+            --repo-root "$GITHUB_WORKSPACE"
