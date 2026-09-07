@@ -32,40 +32,36 @@ class GateBCompatibilityTests(unittest.TestCase):
         self.assertEqual(self.registry["selection"], "exact_version_only")
         self.assertFalse(self.registry["nearest_version_fallback"])
 
-    def test_current_target_is_explicit_exact_profile(self):
+    def test_current_target_is_explicit_exact_deployable_profile(self):
         current = gate.current_target_profile(REGISTRY)
         self.assertEqual(self.registry["current_target"], "1.18.29")
         self.assertEqual(current["profile_id"], self.p29["profile_id"])
+        selected = gate.select_profile(
+            REGISTRY,
+            "1.18.29",
+            require_deployable=True,
+            platform="linux",
+        )
+        self.assertEqual(selected["profile_id"], self.p29["profile_id"])
 
     def test_unknown_future_version_fails_closed(self):
         with self.assertRaises(gate.CompatibilityError) as ctx:
             gate.select_profile(REGISTRY, "1.18.30")
         self.assertEqual(ctx.exception.code, "UNVALIDATED_OPENCODE_VERSION")
 
-    def test_runtime_revalidated_baseline_remains_linux_deployable(self):
+    def test_previous_runtime_baseline_remains_linux_deployable(self):
         self.assertTrue(self.p26["deployable"])
         self.assertEqual(self.p26["overall_status"], "DEPLOYABLE")
         self.assertEqual(self.p26["deployable_platforms"], ["linux"])
-        selected = gate.select_profile(
-            REGISTRY,
-            "1.18.26",
-            require_deployable=True,
-            platform="linux",
-        )
-        self.assertEqual(selected["profile_id"], self.p26["profile_id"])
 
-    def test_current_source_equivalent_candidate_fails_closed_for_deployment_until_promoted(self):
-        self.assertEqual(self.p29["overall_status"], "SOURCE_EQUIVALENT")
-        self.assertFalse(self.p29["deployable"])
-        self.assertIn("LINUX_RUNTIME_REVALIDATION_REQUIRED", self.p29["blocking_reasons"])
-        with self.assertRaises(gate.CompatibilityError) as ctx:
-            gate.select_profile(
-                REGISTRY,
-                "1.18.29",
-                require_deployable=True,
-                platform="linux",
-            )
-        self.assertEqual(ctx.exception.code, "PROFILE_NOT_DEPLOYABLE")
+    def test_current_target_runtime_revalidated_linux_only(self):
+        self.assertEqual(self.p29["overall_status"], "DEPLOYABLE")
+        self.assertTrue(self.p29["deployable"])
+        self.assertEqual(self.p29["platform_status"]["linux"], "RUNTIME_REVALIDATED")
+        self.assertEqual(self.p29["platform_status"]["windows"], "SOURCE_REVALIDATED")
+        self.assertEqual(self.p29["deployable_platforms"], ["linux"])
+        self.assertEqual(self.p29["blocking_reasons"], [])
+        self.assertRegex(self.p29["policy_artifacts"]["linux"], r"^sha256:[0-9a-f]{64}$")
 
     def test_full_critical_fingerprint_family_is_source_equivalent(self):
         keys = self.registry["critical_fingerprint_keys"]
@@ -113,7 +109,7 @@ class GateBCompatibilityTests(unittest.TestCase):
 
     def test_deployable_selection_requires_platform(self):
         with self.assertRaises(gate.CompatibilityError) as ctx:
-            gate.select_profile(REGISTRY, "1.18.26", require_deployable=True)
+            gate.select_profile(REGISTRY, "1.18.29", require_deployable=True)
         self.assertEqual(ctx.exception.code, "DEPLOYABLE_PLATFORM_REQUIRED")
 
     def test_profiles_do_not_contain_secret_material(self):
