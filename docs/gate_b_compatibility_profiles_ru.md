@@ -1,9 +1,14 @@
 # Gate B — exact-version compatibility profiles
 
-Статус: **ACCEPTED / Linux 1.18.26 DEPLOYABLE**  
-Дата актуализации: 2026-09-03
+Статус: **ACCEPTED / ROLLING EXACT-VERSION LIFECYCLE**.
 
 Machine-readable registry: `tests/compatibility/registry.json`.
+
+Основной lifecycle частых обновлений описан в:
+
+```text
+docs/rolling_opencode_compatibility_ru.md
+```
 
 ## Contract
 
@@ -14,54 +19,96 @@ unknown version -> UNVALIDATED_OPENCODE_VERSION
 deployable selection requires explicit platform
 ```
 
-No nearest/semver-compatible profile may be selected implicitly.
+Новая версия OpenCode не получает старый deployment artifact по semver или по принципу "ближайшей версии".
+
+## Compatibility family
+
+Чтобы частые patch-релизы не требовали полного повторного аудита, exact profiles сравниваются по полному набору authorization-relevant critical fingerprints.
+
+Если все fingerprints совпадают с runtime-revalidated baseline family:
+
+```text
+SOURCE_EQUIVALENT
+```
+
+и разрешён короткий путь к runtime revalidation.
+
+Если хотя бы один fingerprint изменился или отсутствует:
+
+```text
+TARGETED_REAUDIT_REQUIRED
+```
+
+с точным списком изменившихся компонентов.
+
+## Current target
+
+`registry.json` содержит exact `current_target` для normal CI.
+
+CI автоматически читает из его профиля:
+
+- exact version;
+- official Linux x64 release asset name;
+- official release SHA-256.
+
+Номер версии не hardcode-ится в runtime workflow.
 
 ## Profiles
 
 ### OpenCode 1.18.18
 
-Historical Stage 0 baseline. It remains non-deployable for the Gate B artifact contract and is retained as source/fingerprint comparison evidence.
+Historical Stage 0 baseline. Сохраняется как source/fingerprint evidence.
 
 ### OpenCode 1.18.26
 
-Exact upstream:
+Historical runtime-revalidated Linux baseline и первый deployable Gate B profile.
+
+### OpenCode 1.18.29
+
+Current target.
+
+Source comparison с 1.18.26:
 
 ```text
-v1.18.26 -> 774cc7c1914e4329eefde5a669f938b0cf566661
+critical fingerprints: 16 / 16 identical
+result: SOURCE_EQUIVALENT
 ```
 
-Current profile:
+После exact official Linux x64 runtime proof:
 
 ```text
-overall_status: DEPLOYABLE
 linux: RUNTIME_REVALIDATED
 windows: SOURCE_REVALIDATED
+overall: DEPLOYABLE
 deployable_platforms: [linux]
 ```
 
-Linux is bound to:
-
-```text
-sha256:d983bb4d5f2b9f9be195267e89d16c27ce45e706a2afeb527d96142c535cc508
-```
-
-Windows B-P2 proves the named-pipe/process-handle kernel primitive, but OpenCode 1.18.26 was not executed on Windows. Therefore Windows is deliberately absent from `deployable_platforms`.
-
-## Fast path
-
-Shared critical fingerprints between 1.18.18 and 1.18.26 remain explicit. Unchanged fingerprints may use `SOURCE_EQUIVALENT_FAST_PATH_ELIGIBLE`; any changed critical fingerprint returns `TARGETED_REAUDIT_REQUIRED`. Fast path never bypasses required platform/runtime evidence.
+Для 1.18.29 выпущен отдельный exact-version Linux permission artifact. Он semantic-equivalent 1.18.26 native policy output, но имеет отдельную artifact identity, потому что target exact version/profile являются частью binding.
 
 ## Regression acceptance
 
-Tests prove:
+Tests обязаны доказывать:
 
-- exact current profile selection;
+- exact profile selection;
 - unknown future version fail-closed;
 - nearest fallback forbidden;
-- platform required for deployable selection;
-- Linux 1.18.26 selects successfully;
-- Windows 1.18.26 deployable selection fails closed;
-- fingerprint drift triggers targeted re-audit;
-- profiles contain no secret material.
+- полный critical fingerprint family comparison;
+- changed/missing fingerprint -> targeted re-audit;
+- current target Linux runtime proof на official exact binary;
+- current target exact artifact contract;
+- historical profiles не становятся обязательными runtime jobs каждого PR;
+- profiles не содержат secret material.
 
-See `docs/gate_b_final_closure_ru.md` for formal Gate B closure.
+## Maintenance rule
+
+При новом OpenCode release сначала выполняется rolling compatibility path, а не полный Stage 0:
+
+```text
+exact version/tag/commit
+-> critical fingerprint comparison
+-> SOURCE_EQUIVALENT или TARGETED_REAUDIT_REQUIRED
+-> exact runtime proof
+-> exact artifact/profile promotion
+```
+
+Полный/расширенный source audit возвращается только при фактическом drift критического contract.
