@@ -1,6 +1,6 @@
 # Rolling compatibility для часто обновляемого OpenCode
 
-Статус: **ACCEPTED DESIGN / EXACT-VERSION FAIL-CLOSED**.
+Статус: **IMPLEMENTED / 1.18.29 LINUX RUNTIME_REVALIDATED**.
 
 ## 1. Проблема
 
@@ -104,6 +104,8 @@ overall: DEPLOYABLE
 
 и exact-version permission artifact.
 
+Исторический DC-4 proof остаётся pinned к версии, на которой был закрыт. Rolling wrapper переиспользует его non-destructive scenario contract на exact current target и сам проверяет ожидаемую версию.
+
 ## 6. Current target
 
 Registry содержит `current_target` — exact версию, на которой normal CI выполняет runtime proof.
@@ -189,15 +191,15 @@ Rolling compatibility не требует:
 - daemon/broker;
 - запуска всех исторических binaries на каждом CI;
 - блокировки обновлений OpenCode пользователю;
-- отдельной policy для каждого patch, если semantic source одинаков.
+- отдельной semantic policy для каждого patch, если semantic source одинаков.
 
 Exact profiles/artifacts остаются отдельными, compatibility family позволяет только переиспользовать доказательства.
 
 ## 12. Текущий пример: 1.18.29
 
-OpenCode 1.18.29 сравнивается с runtime-revalidated baseline 1.18.26.
+OpenCode 1.18.29 сравнен с runtime-revalidated baseline 1.18.26.
 
-Результат source comparison:
+Source comparison:
 
 ```text
 critical fingerprints matched: 16 / 16
@@ -205,6 +207,16 @@ changed: 0
 result: SOURCE_EQUIVALENT
 ```
 
-Это позволяет сразу перейти к exact 1.18.29 runtime proof без полного повторения source audit.
+Exact official Linux x64 release artifact затем прошёл rolling runtime proof:
 
-До успешного runtime proof и выпуска exact artifact профиль 1.18.29 остаётся non-deployable.
+```text
+native ALLOW terminal                 PASS
+native DENY terminal                  PASS
+ASK -> classifier -> once             PASS
+authorization-binding revalidation    PASS
+declared environment drift fail-close PASS
+```
+
+После этого выпущен отдельный exact-version Linux permission artifact и профиль 1.18.29 получил `RUNTIME_REVALIDATED / DEPLOYABLE` для Linux.
+
+Windows для 1.18.29 остаётся source-revalidated only и не входит в `deployable_platforms`.
