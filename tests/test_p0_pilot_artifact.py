@@ -91,6 +91,7 @@ class P0PilotArtifactPlanTests(unittest.TestCase):
         self.assertIn('"once"', source)
         self.assertIn('"reject"', source)
 
+    @unittest.skipUnless(sys.platform == "linux", "P0 committed artifact is Linux-only")
     def test_committed_artifact_is_exact_materialization_of_current_plan(self):
         result = artifact.validate_committed_artifact(ROOT)
         self.assertEqual(result["result"], "MP0_ARTIFACT_VALID")
