@@ -2,13 +2,13 @@
 
 Статус: **DESIGN / NO LIVE DEPLOYMENT**.
 
-Этот pilot нужен до auditor stage. Его задача — подключить уже доказанные native + deterministic механизмы в ограниченном managed environment и измерить реальные остаточные `ASK_USER`.
+Pilot нужен до auditor stage. Его задача — подключить уже доказанные native + deterministic механизмы в ограниченном managed environment и измерить реальные остаточные `ASK_USER`.
 
 Pilot не должен одновременно становиться тестом workspace trust, `agent-safe` controlled mutations, broker-а и auditor-а.
 
 ## 1. Цель
 
-Проверить в обычной разработке три практических вопроса:
+Проверить в обычной разработке:
 
 1. сколько prompts снимает уже готовая deterministic архитектура;
 2. какие реальные причины остаются у `ASK_USER`;
@@ -16,14 +16,42 @@ Pilot не должен одновременно становиться тест
 
 Главный результат pilot — **измерение**, а не максимальная автономность.
 
-## 2. P0 scope
+## 2. Version contract
+
+P0 **не привязан навечно к конкретной patch-версии OpenCode**.
+
+Он работает только с exact текущим Linux target, который в rolling compatibility registry имеет одновременно:
+
+```text
+exact profile
++ source/fingerprint validation
++ RUNTIME_REVALIDATED
++ exact-version permission artifact
++ deployable_platforms contains linux
+```
+
+Machine-readable owner target:
+
+```text
+tests/compatibility/registry.json -> current_target
+```
+
+Lifecycle обновлений:
+
+```text
+docs/rolling_opencode_compatibility_ru.md
+```
+
+Если установленный OpenCode обновился раньше validation новой версии, pilot не использует stale artifact и должен fail closed/disable classifier до revalidation. Откат OpenCode пользователю не требуется.
+
+## 3. P0 scope
 
 P0 ограничен:
 
 - Linux;
-- exact OpenCode 1.18.26;
+- exact current runtime-revalidated OpenCode target;
 - canonical native policy Gate B;
-- deterministic classifier только для уже доказанных safe/read-only families;
+- deterministic classifier только для явно включённых P0 read-only families;
 - hard DENY без изменений;
 - unsupported/opaque -> ASK;
 - никаких trust-conditioned build/test ALLOW;
@@ -32,95 +60,88 @@ P0 ограничен:
 - никакого kernel broker;
 - `agent-safe` runtime semantics не меняются.
 
-P0 должен быть пригоден для отключения без восстановления данных: он меняет только managed OpenCode authorization artifacts/plugin, а не пользовательские project files.
+P0 должен отключаться без восстановления project data: он меняет только managed OpenCode authorization artifacts/plugin.
 
-## 3. Почему P0 идёт раньше workspace trust
+## 4. Почему P0 идёт раньше workspace trust
 
 Issue `agent-toolchain#45` реализует persistent workspace trust producer отдельно.
 
-P0 не должен ждать его, потому что:
-
-- текущий deterministic classifier уже закрыт и даёт измеримый prompt reduction;
-- build/test prompts — как раз полезная часть residual-ASK baseline;
-- после P0 можно измерить реальную цену отсутствия trusted-workspace policy;
-- P1 сможет показать incremental benefit workspace trust отдельно.
-
-Таким образом:
+P0 не должен ждать его:
 
 ```text
 P0 = current proven deterministic layer
 P1 = P0 + trusted workspace development scopes
 ```
 
-## 4. Native component
+Build/test prompts в P0 являются полезной частью residual-ASK baseline.
 
-P0 использует уже существующий canonical semantic source:
+## 5. Native component
+
+Canonical semantic source:
 
 ```text
 policy/native/rules.v1.json
 ```
 
-и platform-scoped generated artifact для Linux/OpenCode 1.18.26.
+P0 выбирает generated artifact **точно для current target/version/platform** через compatibility profile.
 
-`agent-toolchain` deploy/reconcile не имеет права semantic-rewrite native policy.
+`agent-toolchain` deploy/reconcile не имеет права semantic-rewrite native policy. Effective read-back после installation обязателен.
 
-Effective read-back после installation обязателен.
-
-## 5. Deterministic component
+## 6. Deterministic component
 
 P0 требует production-shaped adapter bundle, но не новый classifier design.
 
-Bundle должен использовать существующие canonical modules:
+Canonical modules остаются единственным источником classifier logic:
 
 ```text
 tools/normalized_operation_identity.py
 tools/classifier_core.py
 tools/classifier_analyzers.py
 tools/classifier_wrappers.py
-tools/workspace_trust.py   # available to consumer, P0 trust lookup disabled/no fact
+tools/workspace_trust.py
 ```
 
-DC-4 proof plugin **не копируется как production plugin без review**: его mock/scenario/trace code является test fixture.
+DC-4 proof plugin не копируется как production plugin: mock/scenario/trace code является test fixture.
 
-Нужен минимальный production bridge, который делает только:
+Минимальный production bridge:
 
 ```text
 tool.execute.before
   -> bind callID + exact args
 
-permission.asked for native ASK
+permission.asked after native ASK
   -> deterministic adapter
   -> ALLOW => reply once
-  -> ASK_USER => не подменять user decision / оставить normal ASK path
+  -> ASK_USER => оставить normal user decision path
   -> DENY => reject
 
 shell.env / pre-execution hook
-  -> authorization-binding revalidation only when classifier issued ALLOW
+  -> authorization-binding revalidation only for classifier ALLOW
 ```
 
 Bridge не исполняет mutation сам и не становится вторым PDP.
 
-## 6. OpenCode plugin placement
+## 7. OpenCode plugin placement
 
-Exact OpenCode 1.18.26 официально поддерживает global local plugins в:
+Placement/plugin lifecycle считается version-sensitive contract и должен быть подтверждён current compatibility family.
+
+Для доказанного family используется managed global local plugin, а не project-local `.opencode/plugins/`:
 
 ```text
 ~/.config/opencode/plugins/
 ```
 
-и загружает их автоматически.
+Причины:
 
-P0 использует **managed global plugin**, а не project-local `.opencode/plugins/`, потому что:
-
-- project workspace не должен быть owner authorization plugin;
+- project workspace не owner authorization plugin;
 - model-controlled project edits не должны менять effective authorization implementation;
-- один managed installation должен работать одинаково в пилотных workspaces.
+- одна managed installation должна работать одинаково в пилотных workspaces.
 
-Ownership/deployment plugin-файла принадлежит `agent-toolchain`.
+Ownership/deployment принадлежит `agent-toolchain`.
 
-## 7. Bundle location
+## 8. Bundle location
 
-Runtime code не должен зависеть от developer checkout `~/projects/...`.
+Runtime не зависит от developer checkout.
 
 Предпочтительная схема:
 
@@ -129,29 +150,28 @@ agent-toolchain managed data/runtime
   opencode_permissions/<artifact-id>/...
 
 ~/.config/opencode/plugins/
-  opencode-permissions.js   # small managed bridge/loader
+  opencode-permissions.js
 ```
 
-Loader ссылается только на managed immutable/pinned bundle.
+Loader ссылается только на managed content-bound bundle.
 
-Конкретный absolute data root определяет `agent-toolchain`.
+Запрещены:
 
-P0 запрещает:
+- import из mutable developer checkout;
+- mutable `main` как production runtime;
+- project-local authorization plugin;
+- npm registry dependency только ради bridge.
 
-- importing classifier из текущего developer checkout;
-- mutable `main` checkout как production runtime;
-- npm registry dependency только ради plugin;
-- project-local copy plugin-а.
+## 9. Pilot artifact contract
 
-## 8. Pilot artifact contract
-
-Перед deployment `opencode_permissions` должен выпустить content-bound pilot artifact, минимум:
+Перед deployment выпускается content-bound pilot artifact, минимум:
 
 ```yaml
 schema: opencode-permissions-pilot-artifact/v1
 platform: linux
-opencode_version: 1.18.26
+opencode_version: <exact current target>
 native_policy_artifact_id: sha256:...
+compatibility_profile_id: ...
 classifier_profile: ...
 files:
   bridge_js: <sha256>
@@ -162,61 +182,49 @@ constraints:
   workspace_trust_enabled: false
 ```
 
-Artifact identity зависит от exact content всех runtime файлов и relevant profile contract.
+Artifact identity зависит от exact runtime content и exact compatibility profile. `agent-toolchain` только устанавливает artifact; semantic contents принадлежат `opencode_permissions`.
 
-`agent-toolchain` только устанавливает artifact; semantic contents принадлежат `opencode_permissions`.
+## 10. P0 ALLOW surface
 
-## 9. P0 ALLOW surface
+P0 не обязан автоматически использовать весь synthetic classifier universe.
 
-Pilot не должен автоматически использовать весь synthetic classifier universe.
+Для первой production-shaped итерации принят минимальный новый classifier family:
 
-В P0 входят только families, для которых есть одновременно:
+```text
+single-file grep/search
+  + static bounded command representation
+  + one existing non-secret file inside workspace
+  + read-only effect
+```
 
-1. deterministic analyzer regression;
-2. paired dangerous/unknown negatives;
-3. production adapter representation;
-4. exact runtime binding, достаточный для family;
-5. отсутствие state-changing effects.
+Не входят в первый P0 classifier ALLOW:
 
-Initial target families:
+- `find`;
+- pipelines/compound shell;
+- expanded Git inspection;
+- build/test/static check;
+- writes/state-changing actions.
 
-- narrow read-only `find ... -print`;
-- single-file non-secret grep/search;
-- hardened read-only Git inspection;
-- pure compound/pipeline только из P0-proven children;
-- уже native-safe direct operations остаются native-owned.
+Native-safe direct operations остаются native-owned.
 
-Build/test остаются ASK в P0.
+Git расширяется только отдельным решением F5/P1 с техническим workspace/repository trust context; P0 не компенсирует Git config execution surface дополнительной кучей shell/env hacks.
 
-## 10. Executable identity после simplicity audit
+## 11. Executable и environment binding
 
-P0 не обязан повторять high-assurance DC-4 full-content hashing для каждого системного executable.
+После simplicity audit P0 не повторяет high-assurance full-content hashing каждого системного executable по умолчанию.
 
-Минимальный production profile должен доказать достаточную substitution protection, но exact choice фиксируется отдельным P0 implementation review.
+Минимальный production profile использует только authorization-relevant dependencies конкретной family.
 
-Default direction:
-
-- absolute/resolved executable from known system boundary;
-- basic object identity where needed;
-- no repeated full content hash unless family/profile requires it.
-
-Это не меняет DC-4 proof; оно определяет production pilot contract.
-
-## 11. Environment dependencies
-
-P0 следует `dc4_environment_dependency_reconciliation_ru.md`:
+Для environment действует:
 
 - никакого full `process.env` snapshot;
-- только declared authorization-relevant dependencies;
-- unexpected plugin-provided execution transform, не входящий в profile contract, invalidates classifier ALLOW.
-
-Secret-like env values не логируются.
+- только declared dependencies;
+- secret-like values не логируются;
+- unexpected execution transform invalidates classifier ALLOW.
 
 ## 12. Metrics
 
-Pilot собирает только минимальные privacy-safe counters/events.
-
-Нужно знать:
+Pilot собирает минимальные privacy-safe counters/events:
 
 ```text
 native_allow
@@ -227,62 +235,58 @@ classifier_deny
 residual_ask
 classifier_error/fail_closed
 reason_code / family
-opencode version
-policy/artifact profile
+opencode_version
+compatibility_profile
+policy/pilot artifact profile
 ```
 
-Не собирать по умолчанию:
+По умолчанию не собираются:
 
 - raw command;
 - file contents;
 - secret values;
 - environment dump;
-- arbitrary target paths, если family/reason можно посчитать без них.
+- произвольные target paths, если reason/family можно посчитать без них.
 
-Для диагностики конкретного false block пользователь может отдельно включить targeted evidence capture с redaction.
+Targeted redacted evidence включается отдельно только для диагностики конкретной проблемы.
 
-## 13. Pilot success metrics
+## 13. Success criteria
 
-P0 считается полезным, если одновременно:
+P0 полезен, если одновременно:
 
 - unsafe automatic allow = 0;
 - hard DENY override = 0;
 - classifier errors fail closed;
-- measurable residual ASK dataset получен;
-- фактическая доля routine prompts ниже native-only pilot baseline;
-- нет регулярной необходимости открывать raw command только для понимания prompt;
-- operational overhead plugin/runtime не создаёт сопоставимого числа новых сбоев.
+- получен measurable residual ASK dataset;
+- routine prompts меньше native-only baseline;
+- operational overhead не создаёт сопоставимого числа новых сбоев.
 
-Не задавать заранее искусственную цель вроде «90% ALLOW». Решение auditor/trusted-workspace должно исходить из наблюдаемой структуры residual ASK.
+Искусственная цель вроде `90% ALLOW` заранее не задаётся.
 
 ## 14. Rollback / disable
 
-Pilot должен иметь managed reversible switch:
+Pilot имеет managed reversible switch:
 
 ```text
 pilot enabled
-  -> native artifact + classifier plugin active
+  -> exact native artifact + exact classifier plugin active
 
 pilot disabled
-  -> classifier plugin removed/disabled by owner-aware reconciliation
-  -> canonical native policy остаётся либо восстанавливается
+  -> classifier plugin removed/disabled owner-aware
+  -> canonical native policy сохраняется либо восстанавливается
 ```
 
 Unknown/modified user plugin/config не удаляется blind action.
 
-Rollback не должен требовать `git reset`, `clean`, ручного удаления project files или `agent-safe` recovery.
+Rollback не требует `git reset`, `clean`, удаления project files или `agent-safe` recovery.
 
 ## 15. `agent-safe` boundary
 
 P0 не добавляет controlled mutation path.
 
-Если operation state-changing:
+State-changing operation остаётся ASK/DENY согласно текущей policy. P0 не execute/verify/recover её самостоятельно.
 
-- current native/classifier policy остаётся ASK/DENY согласно существующим rules;
-- P0 не пытается самостоятельно execute/verify/recover;
-- будущий controlled path интегрируется отдельно с `agent-safe`.
-
-Это сознательно уменьшает scope первого pilot.
+Будущий controlled mutation path интегрируется отдельно с `agent-safe`.
 
 ## 16. P1 workspace trust
 
@@ -294,13 +298,13 @@ trusted workspace fact
 + paired classifier policy
 ```
 
-P1 должен измеряться отдельно от P0, чтобы видеть реальный incremental prompt reduction.
+P1 измеряется отдельно от P0.
 
 ## 17. Auditor gate
 
 Auditor остаётся **DEFERRED**.
 
-После P0/P1 анализируются residual ASK categories:
+После P0/P1 residual ASK классифицируются как:
 
 ```text
 fixable native rule
@@ -311,7 +315,7 @@ truly semantic gray zone
 unsupported platform/version
 ```
 
-Auditor проектируется только для последней значимой категории, если она действительно остаётся существенной.
+Auditor проектируется только для реально значимой semantic gray zone.
 
 ## 18. Implementation slices
 
@@ -319,22 +323,26 @@ Auditor проектируется только для последней зна
 
 - production bridge без test/mock code;
 - content-bound artifact manifest;
-- P0 family allowlist;
-- no developer-checkout dependency.
+- минимальный P0 family allowlist;
+- no developer-checkout dependency;
+- exact current compatibility target.
 
 ### MP-1 synthetic managed deployment
 
 В `agent-toolchain` temp HOME/state/config fixture:
 
-- install artifact;
+- install exact artifact;
 - effective read-back;
 - repeated apply no-op;
 - disable/rollback;
-- modified/unknown plugin conflict.
+- modified/unknown plugin conflict;
+- installed-version mismatch fail closed.
 
 ### MP-2 disposable exact OpenCode integration
 
-Exact 1.18.26 official binary:
+Используется **current runtime-revalidated official binary из compatibility registry**, а не навсегда закреплённый номер версии.
+
+Проверяются:
 
 - native ALLOW;
 - native DENY;
@@ -345,25 +353,24 @@ Exact 1.18.26 official binary:
 
 ### MP-3 user opt-in pilot
 
-Только после MP-0..MP-2 PASS.
-
-Это первый этап, который меняет реальную пользовательскую managed OpenCode environment.
+Только после MP-0..MP-2 PASS. Это первый этап, который меняет реальную пользовательскую managed OpenCode environment.
 
 ## 19. Stop conditions
 
 Не переходить к live pilot, если:
 
+- установленная версия не имеет exact deployable compatibility profile/artifact;
 - нужен broad `bash: allow`;
-- plugin должен доверять project-local code/config;
+- plugin доверяет project-local code/config;
 - runtime требует developer checkout;
 - setup semantic-rewrites classifier/policy;
-- fail-closed classifier error превращается в execution;
-- unknown plugin ownership нужно destructive overwrite;
-- deployment требует broker/high-assurance machinery без нового evidence;
-- state-changing execution начинает дублировать `agent-safe`.
+- classifier error превращается в execution;
+- unknown plugin ownership требует destructive overwrite;
+- deployment требует broker/high-assurance machinery без evidence;
+- state-changing execution дублирует `agent-safe`.
 
 ## 20. Следующий шаг
 
-До помощи пользователя можно выполнить MP-0 и MP-1 design/implementation в GitHub.
+До помощи пользователя выполняются MP-0, MP-1 и MP-2 в GitHub/disposable fixtures.
 
-Помощь пользователя потребуется только перед MP-3 — реальным opt-in применением pilot к его OpenCode environment.
+Помощь пользователя нужна только перед MP-3 — реальным opt-in применением pilot к установленной, exact compatibility-validated версии OpenCode.
