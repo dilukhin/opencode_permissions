@@ -1,0 +1,151 @@
+{
+  "schema": 1,
+  "profile_format": "opencode-permissions-p0-classifier-profile/v1",
+  "classifier_profile_id": "p0-linux-grep-single-file-v1",
+  "platform": "linux",
+  "allow_families": [
+    "grep.single_nonsecret_workspace_file"
+  ],
+  "shell": {
+    "path": "/bin/dash"
+  },
+  "python_runtime": {
+    "path": "/usr/bin/python3"
+  },
+  "executables": {
+    "grep": {
+      "path": "/usr/bin/grep",
+      "semantic_name": "grep"
+    }
+  },
+  "secret_boundary": {
+    "source": "policy/native/rules.v1.json",
+    "permission": "read",
+    "rule_id_prefix": "read.secret",
+    "actions": [
+      "ask",
+      "deny"
+    ],
+    "resolved_rules": [
+      {
+        "id": "read.secret_variant.ask.29a47657",
+        "pattern": ".env.*",
+        "action": "ask"
+      },
+      {
+        "id": "read.secret_variant.ask.74400ce9",
+        "pattern": "*/.env.*",
+        "action": "ask"
+      },
+      {
+        "id": "read.secret_variant.ask.12453d06",
+        "pattern": ".npmrc",
+        "action": "ask"
+      },
+      {
+        "id": "read.secret_variant.ask.9a0a4294",
+        "pattern": "*/.npmrc",
+        "action": "ask"
+      },
+      {
+        "id": "read.secret_variant.ask.c663144a",
+        "pattern": "*auth.json",
+        "action": "ask"
+      },
+      {
+        "id": "read.secret.deny.dotenv_root",
+        "pattern": ".env",
+        "action": "deny"
+      },
+      {
+        "id": "read.secret.deny.dotenv_nested",
+        "pattern": "*/.env",
+        "action": "deny"
+      },
+      {
+        "id": "read.secret.deny.id_rsa",
+        "pattern": "*id_rsa*",
+        "action": "deny"
+      },
+      {
+        "id": "read.secret.deny.id_ed25519",
+        "pattern": "*id_ed25519*",
+        "action": "deny"
+      },
+      {
+        "id": "read.secret.deny.key_ext",
+        "pattern": "*.key",
+        "action": "deny"
+      },
+      {
+        "id": "read.secret.deny.p12",
+        "pattern": "*.p12",
+        "action": "deny"
+      },
+      {
+        "id": "read.secret.deny.pfx",
+        "pattern": "*.pfx",
+        "action": "deny"
+      },
+      {
+        "id": "read.secret.deny.netrc_root",
+        "pattern": ".netrc",
+        "action": "deny"
+      },
+      {
+        "id": "read.secret.deny.netrc_nested",
+        "pattern": "*/.netrc",
+        "action": "deny"
+      },
+      {
+        "id": "read.secret.deny.gitcred_root",
+        "pattern": ".git-credentials",
+        "action": "deny"
+      },
+      {
+        "id": "read.secret.deny.gitcred_nested",
+        "pattern": "*/.git-credentials",
+        "action": "deny"
+      }
+    ]
+  },
+  "environment_dependencies": [],
+  "metrics": {
+    "schema": "opencode-permissions-p0-metrics/v1",
+    "scope": "ask_path",
+    "required_for_classifier_allow": true,
+    "storage": "per_process_aggregate_snapshot",
+    "state_resolution": "os_homedir_local_state",
+    "raw_inputs": false,
+    "max_reason_buckets": 64,
+    "counters": [
+      "native_ask",
+      "classifier_allow",
+      "classifier_deny",
+      "residual_ask",
+      "classifier_error/fail_closed",
+      "binding_reject"
+    ]
+  },
+  "constraints": {
+    "single_simple_command_only": true,
+    "exactly_one_existing_workspace_file": true,
+    "recursive_search": false,
+    "pipelines": false,
+    "compound_shell": false,
+    "redirects": false,
+    "find": false,
+    "git": false,
+    "build_test_static_check": false,
+    "state_changing": false,
+    "remote": false,
+    "auditor": false,
+    "workspace_trust": false
+  },
+  "target": {
+    "opencode_version": "1.18.29",
+    "compatibility_profile_id": "opencode-1.18.29-gate-b",
+    "compatibility_family_id": "sha256:171d981f8853ca935d982899b15f3933964f8174e1a1d644f820d048fa07536f",
+    "native_policy_artifact_id": "sha256:b38090e07008fb174607aa2a924cfef1dd26d03bdb339a379b1a770397a8ad84"
+  }
+}
