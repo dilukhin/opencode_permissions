@@ -44,6 +44,29 @@ class P0PilotArtifactPlanTests(unittest.TestCase):
         self.assertTrue(all(row["id"].startswith("read.secret") for row in rules))
         self.assertEqual({row["action"] for row in rules}, {"ask", "deny"})
 
+    def test_metrics_contract_is_ask_path_privacy_safe_and_allow_gated(self):
+        metrics = self.plan["runtime_profile"]["metrics"]
+        self.assertEqual(metrics["schema"], "opencode-permissions-p0-metrics/v1")
+        self.assertEqual(metrics["scope"], "ask_path")
+        self.assertTrue(metrics["required_for_classifier_allow"])
+        self.assertEqual(metrics["storage"], "per_process_aggregate_snapshot")
+        self.assertEqual(metrics["state_resolution"], "os_homedir_local_state")
+        self.assertFalse(metrics["raw_inputs"])
+        self.assertEqual(metrics["max_reason_buckets"], 64)
+        self.assertEqual(
+            metrics["counters"],
+            [
+                "native_ask",
+                "classifier_allow",
+                "classifier_deny",
+                "residual_ask",
+                "classifier_error/fail_closed",
+                "binding_reject",
+            ],
+        )
+        self.assertNotIn("native_allow", metrics["counters"])
+        self.assertNotIn("native_deny", metrics["counters"])
+
     def test_bundle_files_are_sha256_bound_and_checkout_independent(self):
         manifest = self.plan["manifest"]
         expected = {
@@ -93,6 +116,19 @@ class P0PilotArtifactPlanTests(unittest.TestCase):
         self.assertIn('["--command", state.command, "--cwd", input.cwd, "--workspace-root", directory]', source)
         self.assertIn('"once"', source)
         self.assertIn('"reject"', source)
+
+    def test_production_bridge_metrics_are_bounded_and_fail_closed_before_execution(self):
+        source = (ROOT / "runtime" / "p0" / "opencode-permissions.js").read_text(encoding="utf-8")
+        self.assertIn('const MAX_BUCKETS = 64', source)
+        self.assertIn('recordMetric(bundle, "native_ask")', source)
+        self.assertIn('recordMetric(bundle, "classifier_allow"', source)
+        self.assertIn('throw new Error("P0_METRICS_WRITE_FAILED")', source)
+        self.assertIn('fs.fsyncSync(descriptor)', source)
+        self.assertIn('fs.renameSync(temporary, destination)', source)
+        self.assertIn('raw_inputs', (ROOT / "pilot" / "p0" / "profile.v1.json").read_text(encoding="utf-8"))
+        self.assertNotIn('process.env.XDG_STATE_HOME', source)
+        self.assertNotIn('native_allow",', source)
+        self.assertNotIn('native_deny",', source)
 
     @unittest.skipUnless(sys.platform == "linux", "P0 committed artifact is Linux-only")
     def test_committed_artifact_is_exact_materialization_of_current_plan(self):

@@ -28,6 +28,23 @@
     ]
   },
   "environment_dependencies": [],
+  "metrics": {
+    "schema": "opencode-permissions-p0-metrics/v1",
+    "scope": "ask_path",
+    "required_for_classifier_allow": true,
+    "storage": "per_process_aggregate_snapshot",
+    "state_resolution": "os_homedir_local_state",
+    "raw_inputs": false,
+    "max_reason_buckets": 64,
+    "counters": [
+      "native_ask",
+      "classifier_allow",
+      "classifier_deny",
+      "residual_ask",
+      "classifier_error/fail_closed",
+      "binding_reject"
+    ]
+  },
   "constraints": {
     "single_simple_command_only": true,
     "exactly_one_existing_workspace_file": true,
