@@ -8,3 +8,7 @@
 /stage0_resolved_permissions*.json
 /stage0_local_audit_report*.md
 /stage0_probe_*.*
+
+# Python test bytecode
+__pycache__/
+*.py[cod]

@@ -16,6 +16,7 @@ from classifier_core import (
     compose_results,
     deny_result,
 )
+from classifier_yc import analyze_yc
 from normalized_operation_identity import jcs_dumps
 
 FACT_SCHEMA = "parsed-simple/v1"
@@ -216,6 +217,9 @@ def analyze_simple(fact: dict[str, Any]) -> dict[str, Any]:
 
     name = executable["invoked"]
     targets = _targets(fact)
+
+    if name == "yc":
+        return analyze_yc(fact)
 
     if name == "pwd" and argv == ["pwd"]:
         cwd_target = _workspace_cwd_target(fact)

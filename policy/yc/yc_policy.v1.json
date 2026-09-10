@@ -1,0 +1,27 @@
+{
+  "schema": "yc-policy/v1",
+  "version": "1.0.0",
+  "provider": "yandex-cloud",
+  "allow_read": [
+    {"service": "compute", "resource": "instance", "action": "list", "argv": ["yc", "compute", "instance", "list"]},
+    {"service": "compute", "resource": "instance", "action": "get", "argv": ["yc", "compute", "instance", "get", "--id", "<resource_id>"]},
+    {"service": "compute", "resource": "disk", "action": "list", "argv": ["yc", "compute", "disk", "list"]}
+  ],
+  "allow_mutations": [
+    {"service": "compute", "resource": "instance", "action": "start", "resource_id": "epd42hrnss08t2440g90", "argv": ["yc", "compute", "instance", "start", "--id", "epd42hrnss08t2440g90"]},
+    {"service": "compute", "resource": "instance", "action": "stop", "resource_id": "epd42hrnss08t2440g90", "argv": ["yc", "compute", "instance", "stop", "--id", "epd42hrnss08t2440g90"]}
+  ],
+  "deny": {
+    "guard_approval": ["--guard", "approve"],
+    "sequences": [
+      ["config", "list"],
+      ["config", "profile", "get"],
+      ["lockbox", "payload", "get"],
+      ["iam", "create-token"],
+      ["iam", "create-id-token"],
+      ["iam", "create-access-token"]
+    ],
+    "sensitive_config_keys": ["token", "password", "secret", "key", "credential", "private"],
+    "sensitive_flags": ["--token", "--service-account-key", "--iam-token", "--oauth-token", "--profile", "--endpoint", "--impersonate-service-account-id", "--impersonate", "--security-context", "--security-context-id"]
+  }
+}
