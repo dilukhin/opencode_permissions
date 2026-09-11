@@ -52,8 +52,10 @@ def _option_name(token: str) -> str | None:
 
 def _native_deny(args: list[str], policy: dict[str, Any]) -> str | None:
     deny = policy["deny"]
-    if len(args) >= 2 and args[:2] == deny["guard_approval"]:
-        return "yc guard approval is never authorized"
+    for sequence in deny["guard_denied_sequences"]:
+        size = len(sequence)
+        if any(args[index:index + size] == sequence for index in range(len(args) - size + 1)):
+            return "yc guard approval or uninstall is never authorized"
     sensitive_flags = set(deny["sensitive_flags"])
     if any(_option_name(token) in sensitive_flags for token in args):
         return "credential, profile, endpoint, or impersonation override"

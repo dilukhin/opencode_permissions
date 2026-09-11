@@ -50,6 +50,17 @@ class YcPolicyTests(unittest.TestCase):
         result = self.classify("yc compute instance list")
         self.assertEqual(core.combine_native_classifier("deny", result), {"decision": "DENY", "source": "native"})
 
+    def test_guard_control_variants_are_terminal_deny_without_blanket_guard_deny(self):
+        for command in (
+            "yc --guard approve request",
+            "yc --verbose --guard approve request",
+            "yc --guard uninstall",
+            "yc --verbose --guard uninstall",
+        ):
+            with self.subTest(command=command):
+                self.assertEqual(self.classify(command)["decision"], "DENY")
+        self.assertEqual(self.classify("yc --guard status")["decision"], "ASK_USER")
+
     def test_allow_operations_have_exact_identity_and_effects(self):
         for command in (
             "yc compute instance list",

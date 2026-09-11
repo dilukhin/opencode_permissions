@@ -12,7 +12,10 @@
     {"service": "compute", "resource": "instance", "action": "stop", "resource_id": "epd42hrnss08t2440g90", "argv": ["yc", "compute", "instance", "stop", "--id", "epd42hrnss08t2440g90"]}
   ],
   "deny": {
-    "guard_approval": ["--guard", "approve"],
+    "guard_denied_sequences": [
+      ["--guard", "approve"],
+      ["--guard", "uninstall"]
+    ],
     "sequences": [
       ["config", "list"],
       ["config", "profile", "get"],
