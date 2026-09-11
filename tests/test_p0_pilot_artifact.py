@@ -1,6 +1,10 @@
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
+import tempfile
+import textwrap
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,6 +88,66 @@ class P0PilotArtifactPlanTests(unittest.TestCase):
         self.assertFalse(manifest["constraints"]["developer_checkout_dependency"])
         self.assertTrue(manifest["constraints"]["managed_global_plugin_required"])
         self.assertFalse(manifest["constraints"]["setup_semantic_rewrite"])
+
+    def test_minimal_bundle_imports_without_yc_module_and_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            isolated = Path(temporary)
+            runtime = isolated / "runtime"
+            runtime.mkdir()
+            for relative_path, payload in self.plan["payloads"].items():
+                if relative_path == "profile.json" or not relative_path.startswith("runtime/"):
+                    continue
+                destination = isolated / relative_path
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes(payload)
+
+            self.assertFalse((runtime / "classifier_yc.py").exists())
+            probe = textwrap.dedent(
+                """
+import json
+from opencode_p0_adapter import prepare
+from classifier_analyzers import analyze_simple
+
+fact = {
+    "schema": "parsed-simple/v1",
+    "platform": "linux",
+    "parser": {"status": "exact", "profile": "synthetic"},
+    "executable": {
+        "invoked": "yc",
+        "resolved_path": "/usr/bin/yc",
+        "object_identity": "synthetic:yc",
+    },
+    "argv": ["yc", "compute", "instance", "start"],
+    "cwd": {
+        "lexical": "/repo",
+        "object_identity": "synthetic:cwd",
+        "follow_mode": "target",
+        "boundary": "workspace",
+    },
+    "targets": [],
+    "redirects": [],
+    "stdin": {"kind": "none"},
+}
+import_result = analyze_simple(fact)
+print(json.dumps({"imported": True, "result": import_result}, sort_keys=True))
+                """
+            ).replace("\n    ", "\n")
+            completed = subprocess.run(
+                [sys.executable, "-c", probe],
+                cwd=isolated,
+                env={"PATH": os.environ.get("PATH", ""), "PYTHONPATH": str(runtime)},
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            payload = json.loads(completed.stdout)
+            self.assertTrue(payload["imported"])
+            self.assertEqual(payload["result"]["decision"], "ASK_USER")
+            self.assertIn("yc.analyzer_unavailable", payload["result"]["reason_codes"])
+            self.assertIn("process", payload["result"]["effects"])
+            self.assertIn("network", payload["result"]["effects"])
+            self.assertIn("unknown", payload["result"]["effects"])
 
     def test_manifest_disables_deferred_or_state_changing_components(self):
         constraints = self.plan["manifest"]["constraints"]

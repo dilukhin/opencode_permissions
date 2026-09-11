@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "artifact_format": "opencode-permissions-pilot-artifact/v1",
+  "artifact_id": "sha256:f1d32b4853f3caa432a41dbfaa217e3ec634203f8ac70a44c3fc8c675f302037",
+  "status": "mp0_ready",
+  "owner": "dilukhin/opencode_permissions",
+  "target": {
+    "product": "opencode",
+    "exact_version": "1.18.29",
+    "platform": "linux",
+    "compatibility_profile_id": "opencode-1.18.29-gate-b",
+    "compatibility_family_id": "sha256:171d981f8853ca935d982899b15f3933964f8174e1a1d644f820d048fa07536f"
+  },
+  "native_policy_artifact_id": "sha256:b38090e07008fb174607aa2a924cfef1dd26d03bdb339a379b1a770397a8ad84",
+  "classifier_profile": {
+    "id": "p0-linux-grep-single-file-v1",
+    "relative_path": "profile.json",
+    "sha256": "1918c84275b430dbe69a69942e4d7c06b69124c6df7094a1c095148c4f96e902"
+  },
+  "files": [
+    {
+      "path": "bridge.js",
+      "sha256": "cbc44ca581bb9029b37e45470ff2be06fa4b5317260eb61e5d9406f28cf4efdc",
+      "size": 16759
+    },
+    {
+      "path": "profile.json",
+      "sha256": "1918c84275b430dbe69a69942e4d7c06b69124c6df7094a1c095148c4f96e902",
+      "size": 3790
+    },
+    {
+      "path": "runtime/classifier_analyzers.py",
+      "sha256": "f31e49048f77127aee6552b43d744816d10f8affe50dd17a09db4b8707f6ac79",
+      "size": 19032
+    },
+    {
+      "path": "runtime/classifier_core.py",
+      "sha256": "7ea5ecceb173262042567330b1f89a13f313291f8b89d67d1f86bdb260ff417e",
+      "size": 16966
+    },
+    {
+      "path": "runtime/normalized_operation_identity.py",
+      "sha256": "f098d5cd6d6f7ce82fe64abba40d5372e04920fcc69d342c085d00a3577d6c67",
+      "size": 9433
+    },
+    {
+      "path": "runtime/opencode_p0_adapter.py",
+      "sha256": "bc4571cb77a37ac2abe36f7b75e3aaa5e8c0248ee582b9d381a9fae389e021a9",
+      "size": 14450
+    }
+  ],
+  "constraints": {
+    "exact_version_only": true,
+    "requires_deployable_profile": true,
+    "nearest_version_fallback": false,
+    "setup_semantic_rewrite": false,
+    "managed_global_plugin_required": true,
+    "developer_checkout_dependency": false,
+    "auditor_enabled": false,
+    "workspace_trust_enabled": false,
+    "state_changing_classifier_enabled": false,
+    "classifier_error_result": "ASK_USER",
+    "competing_effective_layer_result": "CONFLICT",
+    "runtime_bundle_digest_check": true
+  },
+  "artifact_path_segment": "sha256-f1d32b4853f3caa432a41dbfaa217e3ec634203f8ac70a44c3fc8c675f302037"
+}
