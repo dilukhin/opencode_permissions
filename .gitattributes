@@ -1,3 +1,11 @@
 # Byte-bound Gate B policy/artifact files must survive Windows checkout unchanged.
 policy/native/** text eol=lf
 dist/opencode/** text eol=lf
+
+# Byte-bound P0 pilot inputs/output must survive Windows checkout unchanged.
+runtime/p0/** text eol=lf
+tools/classifier_analyzers.py text eol=lf
+tools/classifier_core.py text eol=lf
+tools/normalized_operation_identity.py text eol=lf
+tools/opencode_p0_adapter.py text eol=lf
+dist/pilot/** text eol=lf

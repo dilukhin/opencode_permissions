@@ -89,6 +89,24 @@ class P0PilotArtifactPlanTests(unittest.TestCase):
         self.assertTrue(manifest["constraints"]["managed_global_plugin_required"])
         self.assertFalse(manifest["constraints"]["setup_semantic_rewrite"])
 
+    def test_byte_bound_sources_and_pilot_output_are_lf_pinned(self):
+        paths = [*artifact.BUNDLE_SOURCES.values(), "dist/pilot/sha256-test/manifest.json"]
+        completed = subprocess.run(
+            ["git", "check-attr", "eol", "--", *paths],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        observed = {}
+        for line in completed.stdout.splitlines():
+            path, attribute, value = line.rsplit(": ", 2)
+            self.assertEqual(attribute, "eol")
+            observed[path] = value
+        self.assertEqual(set(observed), set(paths))
+        self.assertTrue(all(value == "lf" for value in observed.values()))
+
     def test_minimal_bundle_imports_without_yc_module_and_fails_closed(self):
         with tempfile.TemporaryDirectory() as temporary:
             isolated = Path(temporary)

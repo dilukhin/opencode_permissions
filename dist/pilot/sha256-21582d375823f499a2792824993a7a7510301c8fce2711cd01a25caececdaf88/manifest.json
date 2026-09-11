@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "artifact_format": "opencode-permissions-pilot-artifact/v1",
-  "artifact_id": "sha256:f1d32b4853f3caa432a41dbfaa217e3ec634203f8ac70a44c3fc8c675f302037",
+  "artifact_id": "sha256:21582d375823f499a2792824993a7a7510301c8fce2711cd01a25caececdaf88",
   "status": "mp0_ready",
   "owner": "dilukhin/opencode_permissions",
   "target": {
@@ -20,8 +20,8 @@
   "files": [
     {
       "path": "bridge.js",
-      "sha256": "cbc44ca581bb9029b37e45470ff2be06fa4b5317260eb61e5d9406f28cf4efdc",
-      "size": 16759
+      "sha256": "95792b540ed1ec8f0d7fc97765ee3e1f584084d12fead171dc12d17f27b0d797",
+      "size": 16317
     },
     {
       "path": "profile.json",
@@ -30,23 +30,23 @@
     },
     {
       "path": "runtime/classifier_analyzers.py",
-      "sha256": "f31e49048f77127aee6552b43d744816d10f8affe50dd17a09db4b8707f6ac79",
-      "size": 19032
+      "sha256": "698ad9bb86d4744bb4e6930984d781184e6f1a8c816c4acfc556241633ea8557",
+      "size": 18590
     },
     {
       "path": "runtime/classifier_core.py",
-      "sha256": "7ea5ecceb173262042567330b1f89a13f313291f8b89d67d1f86bdb260ff417e",
-      "size": 16966
+      "sha256": "139f6ae5735806eb2d809a775708f34f74f507379640348c059783a683a78889",
+      "size": 16598
     },
     {
       "path": "runtime/normalized_operation_identity.py",
-      "sha256": "f098d5cd6d6f7ce82fe64abba40d5372e04920fcc69d342c085d00a3577d6c67",
-      "size": 9433
+      "sha256": "d59435c8309157485841ed87f4d3d79fb6093acd83a69fcc1afa5bcff34e5168",
+      "size": 9145
     },
     {
       "path": "runtime/opencode_p0_adapter.py",
-      "sha256": "bc4571cb77a37ac2abe36f7b75e3aaa5e8c0248ee582b9d381a9fae389e021a9",
-      "size": 14450
+      "sha256": "c68981ba981eab160e3b849afeb8d4e6a11cc63328321e0b1d665d9a74413a56",
+      "size": 14074
     }
   ],
   "constraints": {
@@ -63,5 +63,5 @@
     "competing_effective_layer_result": "CONFLICT",
     "runtime_bundle_digest_check": true
   },
-  "artifact_path_segment": "sha256-f1d32b4853f3caa432a41dbfaa217e3ec634203f8ac70a44c3fc8c675f302037"
+  "artifact_path_segment": "sha256-21582d375823f499a2792824993a7a7510301c8fce2711cd01a25caececdaf88"
 }
