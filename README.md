@@ -66,6 +66,14 @@ Temporary/trash/delete/retention/verification/recovery semantics принадл�
 
 Roadmap/design сам по себе не доказывает реализацию.
 
+## Текущая работа
+
+- [Состояние проекта](docs/STATUS.md).
+- [Порядок работ и условия перехода](docs/work_plan_ru.md).
+- [Проверка готовности P0 от 2026-09-19](docs/p0_readiness_review_2026-09-19_ru.md).
+
+Датированные результаты CI и артефакты хранятся в отчёте; устойчивые правила — в design/baseline.
+
 ## Gate state
 
 ### Stage 0 / Gate A
@@ -151,7 +159,7 @@ Gate B native baseline: 6 / 11 = 54.5%
 
 - kernel authorization broker — **optional high-assurance**, не обязательный default path;
 - полный executable content hash — proof/high-assurance механизм, не default requirement;
-- full `process.env` binding будет заменён explicit environment dependencies;
+- full `process.env` binding заменён explicit environment dependencies в DC-4 proof;
 - trusted-workspace направление принято, но **не расширяет ALLOW до отдельного design/acceptance**;
 - exact-version fail-closed сохраняется, evidence может переиспользовать capability/fingerprint contracts только после explicit revalidation;
 - новые cross-project wire schemas — just-in-time;

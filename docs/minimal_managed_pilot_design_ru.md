@@ -1,6 +1,8 @@
 # Minimal managed pilot — design и acceptance
 
-Статус: **DESIGN / NO LIVE DEPLOYMENT**.
+Статус: **ДЕЙСТВУЮЩИЙ DESIGN / MP-0…MP-2 РЕАЛИЗОВАНЫ / MP-3 НЕ ПРИМЕНЁН В РАМКАХ ЭТОЙ РАБОТЫ**.
+
+Текущее состояние и доказательства: [STATUS.md](STATUS.md). Этот документ задаёт контракт, а не текущий номер артефакта.
 
 Pilot нужен до auditor stage. Его задача — подключить уже доказанные native + deterministic механизмы в ограниченном managed environment и измерить реальные остаточные `ASK_USER`.
 
@@ -224,21 +226,22 @@ Git расширяется только отдельным решением F5/P
 
 ## 12. Metrics
 
-Pilot собирает минимальные privacy-safe counters/events:
+Действующий контракт: [mp3_metrics_readiness_ru.md](mp3_metrics_readiness_ru.md). Plugin для доказанной compatibility family наблюдает только путь после native ASK:
 
 ```text
-native_allow
-native_deny
 native_ask
 classifier_allow
 classifier_deny
 residual_ask
 classifier_error/fail_closed
+binding_reject
 reason_code / family
 opencode_version
 compatibility_profile
 policy/pilot artifact profile
 ```
+
+Native ALLOW/DENY проверяются в controlled MP-2, но не являются live counters: plugin не наблюдает их однозначно и не должен угадывать эти решения. Успех исполнения оценивается отдельно от снятого prompt и ошибок binding. При отсутствии native ASK доля сокращения prompts не определена.
 
 По умолчанию не собираются:
 
@@ -371,6 +374,6 @@ Auditor проектируется только для реально значи
 
 ## 20. Следующий шаг
 
-До помощи пользователя выполняются MP-0, MP-1 и MP-2 в GitHub/disposable fixtures.
+MP-0, MP-1 и MP-2 для проверенного текущего artifact уже выполнены; доказательства — в [отчёте](p0_readiness_review_2026-09-19_ru.md). Следующий подготовительный шаг — пользовательский интерфейс MP-3 в [agent-toolchain#61](https://github.com/dilukhin/agent-toolchain/issues/61).
 
-Помощь пользователя нужна только перед MP-3 — реальным opt-in применением pilot к установленной, exact compatibility-validated версии OpenCode.
+Конкретное применение pilot согласуется после готовности интерфейса и проверки установленной exact compatibility-validated версии OpenCode.

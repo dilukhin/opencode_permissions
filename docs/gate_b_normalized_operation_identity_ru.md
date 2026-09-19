@@ -1,9 +1,11 @@
 # Gate B — `NormalizedOperation` exact identity / canonicalization contract
 
-Статус: **REVIEW PROPOSAL / U2 design substantially specified, implementation pending**  
+Статус: **ИСТОРИЧЕСКИЙ GATE B DESIGN / НЕ ТЕКУЩИЙ ОТЧЁТ О РЕАЛИЗАЦИИ**  
 Дата: 2026-09-02
 
-Этот документ определяет identity contract для exact-bound authorization. Он не классифицирует effects и не является deterministic classifier.
+DC-0 core и DC-4 proven-profile closure описаны в [dc0_normalized_operation_identity_implementation_ru.md](dc0_normalized_operation_identity_implementation_ru.md), [deterministic_classifier_gate_closure_ru.md](deterministic_classifier_gate_closure_ru.md) и [cross_project_unresolved_decisions_ru.md](cross_project_unresolved_decisions_ru.md). Broker-resident grant ниже — исторический/high-assurance вариант, не обязательная default architecture; приоритет у [architecture_simplicity_reconciliation_ru.md](architecture_simplicity_reconciliation_ru.md).
+
+Этот документ определяет исходный identity contract для exact-bound authorization. Он не классифицирует effects и не является deterministic classifier.
 
 ## 1. Цель
 
@@ -377,4 +379,4 @@ U2 can close only after:
 8. operation identity is recomputed/revalidated at trusted execution boundary;
 9. schema/canonicalization version change is explicit and compatibility-managed.
 
-Current state: **design specified; implementation/test-vector closure pending**.
+Историческое состояние на дату этого design: implementation/test-vector closure pending. Актуальное U2 closure относится к реализованному core и доказанному Linux/DC-4 profile; оно не доказывает общий ProcessSpec adapter или все remote/platform profiles.

@@ -221,17 +221,14 @@ Research не удаляется, но не задаёт default architecture б
 
 ## 11. Следующая последовательность
 
-Текущее состояние последовательности:
+Актуальная очередь хранится в [work_plan_ru.md](work_plan_ru.md), результаты — в [STATUS.md](STATUS.md).
 
-```text
-1. threat-model/document reconciliation                         DONE
-2. убрать full-env binding, заменить declared dependency        DONE
-3a. trusted-workspace consumer contract                         DONE
-3b. trusted-workspace producer/integration boundary             NEXT
-4. minimal managed pilot contract
-5. pilot + residual ASK metrics
-6. deterministic/native tuning
-7. auditor только при доказанной необходимости
-```
+Действующие зависимости:
+
+- минимальный P0 использует доказанный read-only профиль и **не ждёт** trusted-workspace producer;
+- P1 с trust-conditioned ALLOW требует отдельной приёмки producer/integration;
+- настройка native/deterministic правил опирается на pilot metrics;
+- auditor остаётся отложен до доказанной значимой остаточной неоднозначности;
+- новые structured invocation contracts согласуются с реальными producer/consumer по #34 до фиксации схем.
 
 Параллельная работа `agent-safe` по resource lifecycle/execution safety не переносится сюда и не должна ждать auditor.
