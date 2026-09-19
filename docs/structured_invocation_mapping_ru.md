@@ -1,6 +1,6 @@
 # ProcessSpec → NormalizedOperation: предварительное сопоставление
 
-Статус: **DESIGN CANDIDATE / РЕАЛИЗАЦИЯ НЕ НАЧАТА**.  
+Статус: **ЛОКАЛЬНЫЙ DRAFT СОПОСТАВЛЕН / ИНТЕГРАЦИЯ НЕ РЕАЛИЗОВАНА**.  
 Задача: [#34](https://github.com/dilukhin/opencode_permissions/issues/34). Дата: 2026-09-19.
 
 Первый результат #34: сопоставление существующего API, границ доверия и минимального следующего изменения. Это не утверждённая новая wire schema и не разрешение расширить ALLOW.
@@ -17,9 +17,18 @@
 - [declared environment dependencies](dc4_environment_dependency_reconciliation_ru.md);
 - [граница agent-safe](opencode_permissions_agent_safe_boundary_ru.md).
 
-Задачи producer/consumer ещё требуют design: [agent-safe#25](https://github.com/dilukhin/agent-safe/issues/25) и [ssh_relay#47](https://github.com/dilukhin/ssh_relay/issues/47). Их постановки перечитаны; окончательные schemas из них не следуют.
+Повторная проверка 2026-09-19: конкретный **локальный** draft появился. Удалённый structured-контракт намеренно отложен.
 
-Предварительное решение: **переиспользовать NormalizedOperation и существующий classifier core; не создавать новый PDP, authorization schema или универсальный исполнитель**. После конкретного draft выбрать: существующий API + fixtures либо узкий trusted adapter. Утверждать сейчас, что адаптер не нужен или что общий adapter уже готов, нельзя.
+| Источник | Проверенный HEAD | Готовность |
+|---|---|---|
+| [agent-safe#28](https://github.com/dilukhin/agent-safe/pull/28), PROCESS_RECOVERY_DESIGN.md | `4c6d28a6c06e53c6b178dcad55c39ae59b0c7d37` | Локальный вариант принят; PR открыт, не слит |
+| [agent-safe#31](https://github.com/dilukhin/agent-safe/pull/31), ProcessSpec/RollbackPlan/recover | `40a1fdf3d9f25f84608a3c9c9b0c1f5d8f6086f9` | Есть первый внутренний потребитель восстановления и его verify; PR открыт, не слит |
+| [agent-safe#25](https://github.com/dilukhin/agent-safe/issues/25), часть A | master `9f92c3953d061882aba5c5545465c5490bfbb110` | Публичные verify/receipt/main-spec входы ещё не реализованы |
+| [ssh_relay#49](https://github.com/dilukhin/ssh_relay/pull/49), исследование #47 | `a2d3e2d5b692683b00e241bbd36dbe0f40be0c36` | Draft предлагает сохранить строковый API и отложить RemoteProcessSpec/helper |
+
+ssh_relay main при повторной проверке — `c98561d88785f7936c4c5be5701cb7c4979261e0`: PR #46 уже слит. Указание в #49, что #46 открыт, историческое; это не меняет отсутствия structured remote API.
+
+Решение: **продолжить локальный mapping сейчас; переиспользовать NormalizedOperation и classifier core**. Не требуется ждать SSH или реализации всех публичных входов #25A. Для связи первого потребителя с authorization нужна узкая доверенная граница подготовки facts/проекции и проверки перед spawn; обычного forwarding ProcessSpec в существующий bounded analyzer недостаточно. Необходимость изменения canonicalizer не обнаружена. Production adapter ещё не готов: точный handoff и представления дополнительных dependencies требуют решений из раздела 7.
 
 ## 2. Что действительно реализовано
 
@@ -39,7 +48,7 @@ Identity core допускает вложенные JSON-поля execution, н�
 
 ## 3. Сопоставление полей
 
-Имена слева логические: окончательные имена и wire representation принадлежат producer. «Нужно уточнить» означает открытое решение, а не готовое поле публичного API.
+Для локального ProcessSpec имена и семантика ниже проверены по agent-safe#28/#31. Удалённые поля остаются логическими требованиями, не существующим RemoteProcessSpec API.
 
 | Вход / факт | NormalizedOperation или отдельное связывание | Кто подтверждает / что проверить |
 |---|---|---|
@@ -47,20 +56,42 @@ Identity core допускает вложенные JSON-поля execution, н�
 | Платформа исполнения | platform | Trusted adapter определяет фактическую целевую ОС; для remote Windows client не подменяет Linux target |
 | Локальный/удалённый вызов | channel | Trusted adapter + transport; не модельный флаг |
 | program | execution.executable: invoked/resolved_path/object_identity | Resolver исполнения; выбранный executable проверяется до spawn, PATH name недостаточен |
-| argv / args | execution.argv — точный упорядоченный вектор | До реализации договориться, содержит ли source argv executable. Existing local core требует argv[0] == executable.invoked; избежать двойной вставки или потери argv[0] |
+| argv | execution.argv = [program, *resolved_argv] | agent-safe argv **не включает program**; после раскрытия artifact-ссылок добавить program ровно один раз. Core требует argv[0] == executable.invoked |
 | cwd | execution.cwd и релевантный target | Trusted acquisition: requested/resolved/object/follow semantics; не косметическая нормализация пути |
-| env | Только объявленные context_dependencies | Profile определяет влияние, adapter получает подтверждённые значения/факты. Не копировать весь environment |
-| stdin | Execution-relevant dependency/descriptor; точное представление нужно согласовать | Producer + trusted executor: mode, границы bytes, immutable/read-back binding при необходимости. Отсутствие stdin и пустой input не приравнивать без контракта |
+| env_dependencies | Только подтверждённые context_dependencies | В #31 допустимы отсутствие или []; непустой список отклоняется, окружение наследуется. Это не доказательство независимости скрипта от env и не основание ALLOW |
+| stdin_utf8 | Связать mode и точное исполненное содержимое; представление adapter ещё согласовать | До 64 КиБ UTF-8; отсутствие → DEVNULL, пустая строка → PIPE с пустым вводом. Для обещания exact bytes проверить text-mode executor на Windows |
 | script/interpreter/helper payload | exact execution payload или bound dependency принятого profile | Анализатор + executor; digest предотвращает подмену, но не доказывает безопасность |
 | Удалённый узел и transport | remote.host_identity, transport и согласованный host target | ssh_relay предоставляет подтверждённую связь endpoint → identity. Display hostname/пользовательская строка не proof |
 | Конкретный remote route/channel/helper version | Согласованный profile-specific remote/execution dependency | Transport и trusted consumer; смена значимого маршрута/помощника инвалидирует старое разрешение |
 | targets/effects | targets/effects | Вычисляет/подтверждает trusted analyzer, а не копирует model claims |
-| timeout / лимиты | Runtime contract; в identity/binding, если меняют разрешённые effects или условия | agent-safe/ssh_relay владеют прекращением/исходом; policy определяет значимость. Не добавлять float в op-jcs-v1 |
+| timeout_seconds / лимиты | Runtime contract; для этого локального adapter связывать timeout как условие исполнения | В #31 целое 1–3600. Timeout после spawn даёт unknown, не rollback/retry; остальные лимиты проверяются до запуска. Не добавлять float в op-jcs-v1 |
 | purpose/description | Вне identity | Только объяснение, не доказательство разрешения |
 | call/session/transaction/receipt IDs | Отдельная correlation/source binding | Владелец authorization + transport; одинаковая identity не разрешает повтор другой операции |
 | approved=true / trusted=true | Не является authority | Не признавать caller input доказательством; embedded agent-safe может только сузить решение |
 
 Для stdin/helper/route/timeout текущий документ задаёт требование, но не придумывает обязательную новую wire schema. Если поле существенно и его невозможно точно связать с исполнением, результат остаётся non-ALLOW.
+
+### 3.1. Конкретный локальный потребитель #31
+
+Проверены [process_spec.py](https://github.com/dilukhin/agent-safe/blob/40a1fdf3d9f25f84608a3c9c9b0c1f5d8f6086f9/src/agent_safe/core/process_spec.py), [rollback.py](https://github.com/dilukhin/agent-safe/blob/40a1fdf3d9f25f84608a3c9c9b0c1f5d8f6086f9/src/agent_safe/core/rollback.py), [recover.py](https://github.com/dilukhin/agent-safe/blob/40a1fdf3d9f25f84608a3c9c9b0c1f5d8f6086f9/src/agent_safe/adapters/recover.py) и [_run](https://github.com/dilukhin/agent-safe/blob/40a1fdf3d9f25f84608a3c9c9b0c1f5d8f6086f9/src/agent_safe/adapters/exec_adapter.py).
+
+- Это внутренний процесс восстановления и его отдельный verify. Основное действие, его verify/receipt остаются на прежнем входе. Комплект rollback не связывает зависимости основного действия.
+- ProcessSpec v1: обязательны schema_version/program/argv/cwd/shell/timeout_seconds; optional stdin_utf8/env_dependencies. shell только false; неизвестные поля отклоняются. В RollbackPlan допустимы целые аргументы `{"artifact":"id"}`; resolved_spec заменяет их абсолютными путями сохранённых копий. Identity строится **после раскрытия**, до authorization; никакой shell-пересборки.
+- Первый профиль: текущий канонический Python, `-I`, сохранённый script; одна обычная файловая цель до 8 МиБ либо отсутствующая. Manifest фиксирует SHA-256/размеры артефактов, контекст program/cwd и target. Один manifest digest не заменяет анализ effects/targets и не даёт разрешения произвольному Python-коду.
+- load_bundle повторно проверяет план, артефакты, program/cwd перед исполнением. recover сверяет target, создаёт отдельную транзакцию и сохраняет исходный recovery block. Это полезная consumer-side revalidation, но вызова opencode_permissions и проверки его continuation в #31 нет. Локальный `--approved` не является таким handoff.
+- Восстановление и verify — разные вызовы. Нужны отдельные operation/call bindings либо явно согласованная композиция с проверкой каждого запуска; разрешение исходной mutation не наследуется. Служебные записи/барьеры остаются под управлением agent-safe, но граница разрешаемого действия должна быть названа явно.
+
+### 3.2. Найденные несовместимости и открытые детали
+
+**Object identity.** agent-safe хранит stat identity массивом, включая mtime_ns/ctime_ns; classifier core ожидает непустую строку object_identity. Вложить исходный stat-массив как JSON dependency тоже нельзя без преобразования: типичные наносекундные timestamps превышают MAX_SAFE_INTEGER op-jcs-v1. Нужна документированная versioned lossless кодировка от доверенного resolver (например, десятичные строки компонентов с явными именами/профилем). Нельзя округлять числа, брать Python repr или принимать готовую identity от caller. Конкретное кодирование пока не утверждено.
+
+В отдельной синтетической проверке на исходном identity core main@7922d612 проверены два случая: число `1790000000000000000` отвергнуто с `INTEGER_OUTSIDE_IJSON_SAFE_RANGE`; его десятичная строка сохраняется без потери. Это проверка выразимости, не тест готового adapter и не интеграционный runtime-прогон.
+
+**stdin.** Документ #31 обещает UTF-8 bytes, но _run использует Popen(text=True, encoding="utf-8") и communicate(str). До интеграции проверить на Windows и Linux побайтовое сохранение LF/CRLF, Unicode и пустого ввода; text-mode может преобразовывать переводы строк. Если контракт exact bytes не выдерживается, исправить structured path либо явно определить преобразование **до binding**. DEVNULL и пустой PIPE не сводить к одному описанию.
+
+**Dependencies и timeout.** Согласовать точные versioned поля для stdin mode/content, artifact ID/path/size/digest и timeout; связывать реально используемые сохранённые копии, не только исходные пути. Integer timeout и несекретные descriptors выразимы текущим identity core, но generic core не валидирует их профильную семантику. До такой проверки нельзя объявить adapter готовым.
+
+**Effects.** Файл-цель из RollbackPlan, non_secret:true и Python -I — ограничения/заявления профиля, не доказательство полного поведения скрипта. Неизвестный script workload остаётся non-ALLOW; подтверждённый hard DENY сохраняется.
 
 ## 4. Граница доверия
 
@@ -110,14 +141,14 @@ Raw ProcessSpec нельзя просто переименовать в parsed-s
 | Windows/Linux и unsupported OpenCode version | Отдельные fixtures; runtime deployability только exact supported profile |
 | Разрыв транспорта после возможной доставки | unknown остаётся unknown; не повторять удалённую команду |
 
-## 7. Минимальный следующий PR и условия начала
+## 7. Порядок продолжения и критерии готовности
 
-Для реализации получить конкретные ответы от draft producer/consumer:
+Локальный draft **готов для архитектурного сопоставления**; этот документ продолжает #34 на его основе. Готового production handoff ещё нет. Удалённый интерфейс **не готов и не нужен для этого локального этапа**.
 
-1. agent-safe#25: schema/version, executable и argv[0], cwd, stdin/env limits, entrypoint и место post-authorization revalidation; особенно verify/rollback/receipt.
-2. ssh_relay#47: выбран ли helper вообще; точный payload boundary, host identity source, route/version binding, stdin/sudo framing, outcomes. Допустимо отложить remote slice.
-3. На этой основе выбрать самый узкий adapter API и allowlist поддержанных полей. Не расширять текущий analyzer общим permissive forwarding.
-4. Отдельный PR добавляет только выбранную проекцию, fixtures и нужную revalidation; schema/compatibility изменение явно версионируется. Canonicalizer меняется лишь при доказанной невозможности выразить нужные facts в действующем контракте.
-5. При достаточности API — добавить только подтверждающие integration fixtures и зафиксировать no-change решение.
+1. **agent-safe#25A + opencode_permissions#34 — согласовать узкую границу вызова.** Назвать точку получения immutable resolved spec и подтверждённых program/cwd/artifact facts после load_bundle; назначить владельца call/role binding, передачи решения и проверки перед каждым spawn. Запретить reuse разрешения исходной mutation для recover/verify. Повторная проверка должна использовать те же факты/байты, которые разрешались. Сохранить один исполнитель и существующий recovery.
+2. **opencode_permissions#34 — зафиксировать adapter profile.** Выбрать versioned lossless object identity и представления stdin/artifacts/timeout; строгий allowlist входа и явный отказ от unsupported env/secret/remote payload. Не менять canonicalizer ради stat integers и не прокидывать дополнительные поля в _process_operation с их потерей. Не выдавать доверие из полей модели.
+3. **agent-safe — подтвердить контракт исполнения.** Добавить byte-level stdin fixtures Windows/Linux для structured executor, включая LF/CRLF/Unicode/empty/DEVNULL; исправить несовпадение, если обнаружится. Публичные verify/receipt/main-spec входы реализуются отдельно в #25A и не являются условием начала узкого внутреннего mapping.
+4. **Совместный отдельный implementation PR — только после 1–3.** Узкая проекция/acquisition + parser/mock fixtures раздела 6, включая artifact expansion до binding, stat outside-safe-range, смену сохранённых байтов, отдельные recover/verify bindings и отказ от replay. Неисполнение при drift проверяется на consumer boundary. Существующие P0/native DENY/ASK не расширяются; неизвестный Python script не получает ALLOW. Документировать поддержанные SHA/profile/platform, не утверждать готовность по одному hash-тесту.
+5. **ssh_relay#47 — оставить remote отдельным этапом.** Draft #49 уже формулирует defer; для текущего локального этапа RemoteProcessSpec не изобретать. При появлении реального удалённого потребителя сначала определить exact payload/host identity/route/helper capability, stdin/sudo framing и outcomes; затем добавить transport fixtures. Upload + shell exec не объявлять structured remote argv.
 
-До этих ответов данное сопоставление можно рецензировать и использовать в соседнем design, но #34 целиком не закрывается. Связанный практический P0 pilot продолжает собственный путь независимо.
+#34 остаётся открытой: mapping уточнён, но integrated fixtures и handoff ещё отсутствуют. PR #36 остаётся draft. Слияние соседних PR, remote helper, runtime deployment и расширение ALLOW этим review не выполняются. Практический P0 pilot продолжает собственный путь независимо.
