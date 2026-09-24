@@ -1,6 +1,8 @@
 # MP-3 metrics readiness — измерительный контракт P0
 
-Статус: **DESIGN + IMPLEMENTATION CANDIDATE / NO LIVE DEPLOYMENT**.
+Статус: **РЕАЛИЗОВАНО И ПРОВЕРЕНО В MP-2 / ПОЛНАЯ MP-3 READINESS НЕ ЗАКРЫТА**.
+
+[Проверка 2026-09-19](p0_readiness_review_2026-09-19_ru.md) подтверждает текущий артефакт и runtime counters. Пользовательский интерфейс из пункта 7 раздела Acceptance остаётся отдельной [задачей agent-toolchain#61](https://github.com/dilukhin/agent-toolchain/issues/61). Реальная пользовательская среда этой проверкой не изменяется.
 
 Этот документ уточняет раздел Metrics в `docs/minimal_managed_pilot_design_ru.md` для текущего exact target OpenCode 1.18.29. До отдельного user opt-in реальная пользовательская OpenCode environment не меняется.
 
@@ -198,4 +200,4 @@ Metrics readiness считается PASS только если одноврем
 
 ## 11. Следующий gate
 
-После merge этого slice semantic owner остаётся `opencode_permissions`. Затем `agent-toolchain` должен принять exact новый artifact, повторить disposable MP-2 с metrics assertions и только после PASS реализовать явный MP-3 user opt-in interface.
+Semantic owner остаётся `opencode_permissions`. Для изменённого runtime artifact требуется disposable MP-2 с metrics assertions. Для проверенного текущего artifact этот шаг уже PASS — см. датированный отчёт. Следующая работа — явный MP-3 user opt-in interface в `agent-toolchain#61`; его приёмка и согласование конкретного применения предшествуют live pilot.
