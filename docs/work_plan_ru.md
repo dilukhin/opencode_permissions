@@ -9,10 +9,10 @@
 | 2Б | Сопоставить ProcessSpec/RemoteProcessSpec с NormalizedOperation | #34; agent-safe#25; ssh_relay#47 | Mapping, границы доверия, fixtures, решение о минимальном изменении |
 | 3 | Закрыть пробелы MP-2 | agent-toolchain | Для текущего артефакта повтор не нужен. Новый runtime/installer diff требует релевантных gates |
 | 4А | Подготовить explicit enable/disable/status/metrics | agent-toolchain#61 | Согласованный CLI/source/preflight contract; synthetic и runtime acceptance |
-| 4Б | Применить P0 на конкретной Linux-среде и измерить | Отдельное согласованное применение | Фактическая exact версия поддержана; baseline и pilot workloads сопоставимы; disable проверен |
+| 4Б | Провести MP-3 baseline на конкретной Linux-среде | Отдельное согласованное применение после #61 | Фактическая exact версия повторно проверена, включая 1.18.30 при использовании ILUKHIN; baseline и pilot workloads сопоставимы; disable проверен |
 | 5 | Реализовать минимальный structured adapter, если нужен | #34 | После draft producer/consumer; no-change/API+fixtures допустимы |
 | 6 | Улучшать native/deterministic coverage | opencode_permissions | Измеримый residual ASK, отрицательные cases, unsafe automatic allow = 0 |
-| 6P1 | Trust-conditioned development scopes | После agent-toolchain#45 | Producer/integration acceptance и paired policy corpus |
+| 6P1 | Подключить trust-conditioned development scope | Consumer готов; producer принят в agent-toolchain#45 / PR #66 | После MP-3 baseline: отдельная issue и приёмка self-trust boundary, provider integration и одной измеренно полезной family; P0 artifact не расширять |
 | 7 | Решить вопрос auditor | После измерений | Только доказанная значимая semantic gray zone |
 
 ## Организация
@@ -21,6 +21,7 @@
 - Проектирование #34 начинается до окончательного утверждения соседних schemas. Реализация не должна опережать согласование input/source/consumer.
 - Не дублировать installer в opencode_permissions; runtime recovery остаётся в agent-safe, transport — в ssh_relay.
 - P0 не ждёт workspace trust, structured invocation или auditor.
+- Producer workspace trust принят; следующим барьером первого P1 ALLOW служат MP-3 baseline и отдельная integration acceptance, а не доработка producer. Self-trust boundary готовить до нового ALLOW. Не смешивать эту работу с #34.
 - Перед следующим implementation slice проверять HEAD/issues/PR владельца; сохранять параллельные изменения.
 - GitHub Connector — основной транспорт; после записи targeted read-back.
 - Локальный исполнитель нужен только для действительно локальной проверки, с ограниченным заданием.
