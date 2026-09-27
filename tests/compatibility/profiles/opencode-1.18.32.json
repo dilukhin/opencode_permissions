@@ -14,15 +14,23 @@
     "critical_fingerprints_total": 16,
     "source_result": "SOURCE_EQUIVALENT"
   },
-  "overall_status": "SOURCE_REVALIDATED",
+  "overall_status": "DEPLOYABLE",
   "platform_status": {
-    "linux": "SOURCE_REVALIDATED",
+    "linux": "RUNTIME_REVALIDATED",
     "windows": "SOURCE_REVALIDATED"
   },
   "runtime_observation": {
     "linux": {
-      "opencode_runtime_executed": false,
-      "result": "SOURCE_REVALIDATED_ONLY"
+      "opencode_runtime_executed": true,
+      "result": "RUNTIME_REVALIDATED",
+      "verified_scope": [
+        "official_release_digest_and_exact_version",
+        "native_allow_terminal",
+        "native_deny_terminal",
+        "native_ask_classifier_once_continuation",
+        "authorization_binding_revalidation",
+        "declared_environment_drift_fail_closed"
+      ]
     },
     "windows": {
       "opencode_runtime_executed": false,
@@ -109,16 +117,17 @@
       "sha256": "3046e0404fdc60fb80307e7a47824ba07477364178a4d09baa8548496dd6d43b"
     }
   },
-  "deployable": false,
-  "blocking_reasons": [
-    "EXACT_LINUX_RUNTIME_REVALIDATION_PENDING",
-    "CANONICAL_DEPLOYABLE_ARTIFACT_NOT_BUILT"
+  "deployable": true,
+  "blocking_reasons": [],
+  "deployable_platforms": [
+    "linux"
   ],
-  "deployable_platforms": [],
-  "policy_artifacts": {},
+  "policy_artifacts": {
+    "linux": "sha256:8bd76e558229888fe01ef079fde3c122e122b6608a2409ecb6b92b69da2d2d03"
+  },
   "notes": [
     "All 16 critical fingerprints are exact-equal to the runtime-revalidated 1.18.26 compatibility family.",
-    "Linux exact 1.18.32 official binary runtime proof and artifact promotion are pending.",
+    "Linux exact 1.18.32 official binary passed the rolling non-destructive runtime proof in CI run 36311550355.",
     "Windows remains source-revalidated only and is not deployable."
   ]
 }

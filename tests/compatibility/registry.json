@@ -5,7 +5,7 @@
   "nearest_version_fallback": false,
   "unknown_version_result": "UNVALIDATED_OPENCODE_VERSION",
   "not_deployable_result": "PROFILE_NOT_DEPLOYABLE",
-  "current_target": "1.18.29",
+  "current_target": "1.18.32",
   "runtime_revalidated_baseline": "1.18.26",
   "critical_fingerprint_keys": [
     "permission_service",
