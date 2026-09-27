@@ -21,6 +21,7 @@ class GateBCompatibilityTests(unittest.TestCase):
         self.p18 = gate.select_profile(REGISTRY, "1.18.18")
         self.p26 = gate.select_profile(REGISTRY, "1.18.26")
         self.p29 = gate.select_profile(REGISTRY, "1.18.29")
+        self.p32 = gate.select_profile(REGISTRY, "1.18.32")
 
     def test_exact_profiles_select_without_nearest_fallback(self):
         self.assertEqual(self.p26["opencode_version"], "1.18.26")
@@ -34,20 +35,25 @@ class GateBCompatibilityTests(unittest.TestCase):
 
     def test_current_target_is_explicit_exact_deployable_profile(self):
         current = gate.current_target_profile(REGISTRY)
-        self.assertEqual(self.registry["current_target"], "1.18.29")
-        self.assertEqual(current["profile_id"], self.p29["profile_id"])
+        self.assertEqual(self.registry["current_target"], "1.18.32")
+        self.assertEqual(current["profile_id"], self.p32["profile_id"])
         selected = gate.select_profile(
             REGISTRY,
-            "1.18.29",
+            "1.18.32",
             require_deployable=True,
             platform="linux",
         )
-        self.assertEqual(selected["profile_id"], self.p29["profile_id"])
+        self.assertEqual(selected["profile_id"], self.p32["profile_id"])
 
     def test_unknown_future_version_fails_closed(self):
         with self.assertRaises(gate.CompatibilityError) as ctx:
-            gate.select_profile(REGISTRY, "1.18.30")
+            gate.select_profile(REGISTRY, "1.18.33")
         self.assertEqual(ctx.exception.code, "UNVALIDATED_OPENCODE_VERSION")
+
+    def test_windows_cannot_select_new_profile_for_deployment(self):
+        with self.assertRaises(gate.CompatibilityError) as ctx:
+            gate.select_profile(REGISTRY, "1.18.32", require_deployable=True, platform="windows")
+        self.assertEqual(ctx.exception.code, "PROFILE_NOT_DEPLOYABLE_FOR_PLATFORM")
 
     def test_previous_runtime_baseline_remains_linux_deployable(self):
         self.assertTrue(self.p26["deployable"])
@@ -55,25 +61,25 @@ class GateBCompatibilityTests(unittest.TestCase):
         self.assertEqual(self.p26["deployable_platforms"], ["linux"])
 
     def test_current_target_runtime_revalidated_linux_only(self):
-        self.assertEqual(self.p29["overall_status"], "DEPLOYABLE")
-        self.assertTrue(self.p29["deployable"])
-        self.assertEqual(self.p29["platform_status"]["linux"], "RUNTIME_REVALIDATED")
-        self.assertEqual(self.p29["platform_status"]["windows"], "SOURCE_REVALIDATED")
-        self.assertEqual(self.p29["deployable_platforms"], ["linux"])
-        self.assertEqual(self.p29["blocking_reasons"], [])
-        self.assertRegex(self.p29["policy_artifacts"]["linux"], r"^sha256:[0-9a-f]{64}$")
+        self.assertEqual(self.p32["overall_status"], "DEPLOYABLE")
+        self.assertTrue(self.p32["deployable"])
+        self.assertEqual(self.p32["platform_status"]["linux"], "RUNTIME_REVALIDATED")
+        self.assertEqual(self.p32["platform_status"]["windows"], "SOURCE_REVALIDATED")
+        self.assertEqual(self.p32["deployable_platforms"], ["linux"])
+        self.assertEqual(self.p32["blocking_reasons"], [])
+        self.assertRegex(self.p32["policy_artifacts"]["linux"], r"^sha256:[0-9a-f]{64}$")
 
     def test_full_critical_fingerprint_family_is_source_equivalent(self):
         keys = self.registry["critical_fingerprint_keys"]
         self.assertEqual(len(keys), 16)
-        result = gate.compare_fingerprint_family(self.p26, self.p29, keys)
+        result = gate.compare_fingerprint_family(self.p26, self.p32, keys)
         self.assertEqual(result["result"], "SOURCE_EQUIVALENT")
         self.assertEqual(result["changed_fingerprints"], [])
         self.assertEqual(
             result["family_id"],
             "sha256:171d981f8853ca935d982899b15f3933964f8174e1a1d644f820d048fa07536f",
         )
-        self.assertEqual(result["family_id"], self.p29["compatibility_family"]["family_id"])
+        self.assertEqual(result["family_id"], self.p32["compatibility_family"]["family_id"])
 
     def test_changed_fingerprint_returns_targeted_reaudit_list(self):
         changed = copy.deepcopy(self.p29)
@@ -113,7 +119,7 @@ class GateBCompatibilityTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, "DEPLOYABLE_PLATFORM_REQUIRED")
 
     def test_profiles_do_not_contain_secret_material(self):
-        for profile in (self.p18, self.p26, self.p29):
+        for profile in (self.p18, self.p26, self.p29, self.p32):
             text = json.dumps(profile).lower()
             for forbidden in ("password", "api_key", "private_key", "authorization_header"):
                 self.assertNotIn(forbidden, text)
