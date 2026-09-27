@@ -35,7 +35,11 @@ jobs:
         run: python tools/stage0_inventory.py --help
 
   opencode-runtime:
-    name: Current OpenCode compatibility runtime proof
+    name: OpenCode ${{ matrix.target }} compatibility runtime proof
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [current, '1.18.32']
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -52,7 +56,7 @@ jobs:
           from pathlib import Path
           root = Path("tests/compatibility")
           registry = json.loads((root / "registry.json").read_text(encoding="utf-8"))
-          version = registry["current_target"]
+          version = registry["current_target"] if "${{ matrix.target }}" == "current" else "${{ matrix.target }}"
           profile = json.loads((root / registry["profiles"][version]).read_text(encoding="utf-8"))
           asset = profile["release_artifacts"]["linux_x64"]
           print(f"OPENCODE_TARGET_VERSION={version}")

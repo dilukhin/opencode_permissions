@@ -35,6 +35,7 @@
   "profiles": {
     "1.18.18": "profiles/opencode-1.18.18.json",
     "1.18.26": "profiles/opencode-1.18.26.json",
-    "1.18.29": "profiles/opencode-1.18.29.json"
+    "1.18.29": "profiles/opencode-1.18.29.json",
+    "1.18.32": "profiles/opencode-1.18.32.json"
   }
 }
