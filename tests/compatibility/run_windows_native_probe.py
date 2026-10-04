@@ -124,6 +124,11 @@ def run_scenario(opencode: str, shell: str, name: str) -> dict[str, Any]:
                 }
             },
         }
+        if diagnostic:
+            config["permission"] = {"bash": {
+                "*": "ask",
+                **{rule["pattern"]: rule["action"] for rule in rules},
+            }}
         (project / "opencode.json").write_text(json.dumps(config), encoding="utf-8")
         env = os.environ.copy()
         env.update({
@@ -150,7 +155,7 @@ def run_scenario(opencode: str, shell: str, name: str) -> dict[str, Any]:
             dc4.wait_server(base, str(project), server)
             session = dc4.http_json(
                 "POST", base + "/session", directory=str(project),
-                payload={"title": name, "permission": rules},
+                payload={"title": name} if diagnostic else {"title": name, "permission": rules},
             )
             session_id = session["id"]
             dc4.http_json(
