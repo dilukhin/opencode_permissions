@@ -135,3 +135,4 @@ jobs:
           python tools/windows_native_diagnostics.py enable --project $project --opencode $env:OPENCODE_RUNTIME_BINARY
           if ($LASTEXITCODE -ne 2) { throw 'Existing project config was not preserved' }
           if ((Get-Content (Join-Path $project 'opencode.json') -Raw) -notmatch '"bash":"deny"') { throw 'Existing config changed' }
+          exit 0
