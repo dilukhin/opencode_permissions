@@ -34,6 +34,22 @@ class WindowsAskingAuditTests(unittest.TestCase):
         self.assertEqual(result["unknown"], 3)
         self.assertTrue(result["checksum_ok"])
         self.assertEqual(result["first_bash_utc"], "2026-10-04T08:30:52.432Z")
+        self.assertEqual(result["family_single"]["git.status"], 2)  # Includes opaque suffix; diagnostic only.
+        self.assertEqual(result["family_multi_any"]["other"], 1)
+        self.assertEqual(result["multi_size"]["2"], 1)
+
+    def test_family_counts_never_echo_unknown_arguments(self):
+        marker = "SYNTHETIC_PRIVATE_VALUE"
+        lines = [
+            f'message=asking permission=bash patterns={json.dumps(json.dumps(["rg " + marker]))}',
+            f'message=asking permission=bash patterns={json.dumps(json.dumps(["git diff", "powershell -Command " + marker]))}',
+        ]
+        result = module.audit(lines)
+        self.assertEqual(result["family_single"]["rg"], 1)
+        self.assertEqual(result["family_multi_any"]["git.diff"], 1)
+        self.assertEqual(result["family_multi_any"]["powershell.other"], 1)
+        self.assertEqual(result["multi_size"]["2"], 1)
+        self.assertNotIn(marker, json.dumps(result))
 
     def test_non_array_and_wrong_types_fail_closed(self):
         for raw in ('"not an array"', '[1]', '[]', '{"a":1}'):
