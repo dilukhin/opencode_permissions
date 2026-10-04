@@ -115,6 +115,10 @@
     "linux_x64": {
       "name": "opencode-linux-x64.tar.gz",
       "sha256": "3046e0404fdc60fb80307e7a47824ba07477364178a4d09baa8548496dd6d43b"
+    },
+    "windows_x64": {
+      "name": "opencode-windows-x64.zip",
+      "sha256": "1483c72d5adced825590a0ecf8cc18b3e87e535960a125dbf539d33bce135d0f"
     }
   },
   "deployable": true,

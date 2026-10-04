@@ -87,3 +87,35 @@ jobs:
             --opencode "$OPENCODE_RUNTIME_BINARY" \
             --expected-version "$OPENCODE_TARGET_VERSION" \
             --repo-root "$GITHUB_WORKSPACE"
+
+  opencode-windows-native-runtime:
+    name: OpenCode 1.18.32 Windows native permission runtime proof
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Download and verify exact official Windows binary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $profile = Get-Content tests/compatibility/profiles/opencode-1.18.32.json -Raw | ConvertFrom-Json
+          if ($profile.opencode_version -ne '1.18.32') { throw 'Unexpected compatibility profile' }
+          $asset = $profile.release_artifacts.windows_x64
+          $archive = Join-Path $env:RUNNER_TEMP $asset.name
+          Invoke-WebRequest -Uri "https://github.com/anomalyco/opencode/releases/download/v1.18.32/$($asset.name)" -OutFile $archive
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $asset.sha256) { throw "Windows asset SHA-256 mismatch: $actual" }
+          $directory = Join-Path $env:RUNNER_TEMP 'opencode-windows-1.18.32'
+          Expand-Archive -Path $archive -DestinationPath $directory
+          $binary = Get-ChildItem $directory -Recurse -File -Filter opencode.exe | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $binary) { throw 'OpenCode executable missing from official archive' }
+          if ((& $binary --version) -ne '1.18.32') { throw 'OpenCode version mismatch' }
+          "OPENCODE_RUNTIME_BINARY=$binary" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Observe native allow, deny, ask and one-time reply
+        shell: pwsh
+        run: |
+          $shellPath = (Get-Command powershell.exe).Source
+          python tests/compatibility/run_windows_native_probe.py --opencode $env:OPENCODE_RUNTIME_BINARY --shell $shellPath
