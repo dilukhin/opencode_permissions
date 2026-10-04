@@ -125,10 +125,10 @@ def run_scenario(opencode: str, shell: str, name: str) -> dict[str, Any]:
             },
         }
         if diagnostic:
-            config["permission"] = {"bash": {
-                "*": "ask",
-                **{rule["pattern"]: rule["action"] for rule in rules},
-            }}
+            fragment = Path(__file__).resolve().parents[2] / "policy" / "windows" / "native_diagnostics_1.18.32.json"
+            config["permission"] = json.loads(fragment.read_text(encoding="utf-8"))["permission"]
+            if action == "allow":
+                config["permission"]["bash"][f"Write-Output {sentinel}"] = "allow"
         (project / "opencode.json").write_text(json.dumps(config), encoding="utf-8")
         env = os.environ.copy()
         env.update({
