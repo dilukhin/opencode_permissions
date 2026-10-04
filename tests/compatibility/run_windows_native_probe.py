@@ -195,7 +195,7 @@ def run_scenario(opencode: str, shell: str, name: str) -> dict[str, Any]:
                 ):
                     raise AssertionError(f"{name}: diagnostic command did not exit successfully")
 
-            if name in {"native_allow", "native_ask_once"}:
+            if name in {"native_allow", "native_ask_once", "compound_diagnostics_allow"}:
                 assert_execution(parts, sentinel)
             else:
                 assert_no_execution(parts, sentinel)
