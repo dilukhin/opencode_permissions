@@ -26,6 +26,8 @@ SCENARIOS = {
     "native_deny": ("deny", "OC_WINDOWS_NATIVE_DENY"),
     "native_ask_once": ("ask", "OC_WINDOWS_NATIVE_ONCE"),
     "native_ask_reject": ("ask", "OC_WINDOWS_NATIVE_REJECT"),
+    "compound_diagnostics_allow": ("allow", "OC_WINDOWS_COMPOUND_ALLOW"),
+    "compound_diagnostics_ask": ("ask", "OC_WINDOWS_COMPOUND_UNAPPROVED"),
 }
 
 
@@ -81,7 +83,19 @@ def assert_execution(parts: list[dict[str, Any]], sentinel: str) -> None:
 
 def run_scenario(opencode: str, shell: str, name: str) -> dict[str, Any]:
     action, sentinel = SCENARIOS[name]
-    command = f"Write-Output {sentinel}"
+    diagnostic = name.startswith("compound_diagnostics_")
+    command = (
+        "Get-Date -Format o; [System.Environment]::OSVersion.VersionString; "
+        f"Get-Location; Write-Output {sentinel}"
+        if diagnostic else f"Write-Output {sentinel}"
+    )
+    rules = [
+        {"permission": "bash", "pattern": "Get-Date -Format o", "action": "allow"},
+        {"permission": "bash", "pattern": "[System.Environment]::OSVersion.VersionString", "action": "allow"},
+        {"permission": "bash", "pattern": "Get-Location", "action": "allow"},
+    ] if diagnostic else []
+    if action == "allow" or not diagnostic:
+        rules.append({"permission": "bash", "pattern": f"Write-Output {sentinel}", "action": action})
     with tempfile.TemporaryDirectory(prefix=f"opencode-windows-{name}-") as tmp, dc4.mock_provider(command) as provider_port:
         root = Path(tmp)
         project = root / "project"
@@ -136,9 +150,7 @@ def run_scenario(opencode: str, shell: str, name: str) -> dict[str, Any]:
             dc4.wait_server(base, str(project), server)
             session = dc4.http_json(
                 "POST", base + "/session", directory=str(project),
-                payload={"title": name, "permission": [
-                    {"permission": "bash", "pattern": command, "action": action}
-                ]},
+                payload={"title": name, "permission": rules},
             )
             session_id = session["id"]
             dc4.http_json(
@@ -155,6 +167,8 @@ def run_scenario(opencode: str, shell: str, name: str) -> dict[str, Any]:
                 if len(requests) != 1 or requests[0].get("permission") != "bash" or requests[0].get("metadata", {}).get("command") != command:
                     raise AssertionError(f"{name}: expected one correlated bash permission request")
                 assert_no_execution(parts, sentinel)
+                if diagnostic and f"Write-Output {sentinel}" not in requests[0].get("patterns", []):
+                    raise AssertionError(f"{name}: unmatched suffix was not included in permission patterns")
                 reply = "once" if name == "native_ask_once" else "reject"
                 dc4.http_json(
                     "POST", base + f"/permission/{requests[0]['id']}/reply",
@@ -168,6 +182,13 @@ def run_scenario(opencode: str, shell: str, name: str) -> dict[str, Any]:
                     raise AssertionError(f"{name}: permission remained pending after {reply}")
             elif requests:
                 raise AssertionError(f"{name}: native {action} left a permission pending")
+            if diagnostic and name == "compound_diagnostics_allow":
+                if not any(
+                    (part.get("state") or {}).get("status") == "completed"
+                    and (part.get("state") or {}).get("metadata", {}).get("exit") == 0
+                    for part in parts
+                ):
+                    raise AssertionError(f"{name}: diagnostic command did not exit successfully")
 
             if name in {"native_allow", "native_ask_once"}:
                 assert_execution(parts, sentinel)
