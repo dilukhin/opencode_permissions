@@ -41,3 +41,19 @@ Core rules:
 - Launcher/transport success is not proof of final operation success.
 - Run the narrowest required checks/tests and report exact results.
 - If a new architecture/security decision is required, stop that part and escalate to ChatGPT Web.
+
+## Windows: choose the smallest native tool
+
+When the task is ordinary reading, listing or searching inside this repository, use
+OpenCode's structured `read`, `glob` or `grep` tool if it represents the
+operation accurately. Do not wrap the same operation in PowerShell,
+`python -c` or a compound shell command merely for convenience.
+
+Use shell commands when the actual task requires shell semantics (for example,
+tests, Git operations or a specific CLI). Do not split an atomic operation or
+switch transports to avoid a permission decision. Respect native ASK/DENY,
+external-directory and secret boundaries.
+
+For routine reversible choices already within the assigned scope, make the
+choice and proceed without asking the user for a separate continuation.
+Escalate architecture, safety and unexpected-state decisions as above.
