@@ -60,12 +60,18 @@ class GateBCompatibilityTests(unittest.TestCase):
         self.assertEqual(self.p26["overall_status"], "DEPLOYABLE")
         self.assertEqual(self.p26["deployable_platforms"], ["linux"])
 
-    def test_current_target_runtime_revalidated_linux_only(self):
+    def test_current_target_linux_deployable_windows_native_only(self):
         self.assertEqual(self.p32["overall_status"], "DEPLOYABLE")
         self.assertTrue(self.p32["deployable"])
         self.assertEqual(self.p32["platform_status"]["linux"], "RUNTIME_REVALIDATED")
-        self.assertEqual(self.p32["platform_status"]["windows"], "SOURCE_REVALIDATED")
+        self.assertEqual(self.p32["platform_status"]["windows"], "NATIVE_RUNTIME_REVALIDATED_ONLY")
+        windows = self.p32["runtime_observation"]["windows"]
+        self.assertTrue(windows["opencode_runtime_executed"])
+        self.assertEqual(windows["result"], "NATIVE_PERMISSION_RUNTIME_REVALIDATED_ONLY")
+        self.assertIn("native_ask_once_continuation", windows["verified_scope"])
+        self.assertIn("windows_classifier_authorization_binding", windows["missing_scope"])
         self.assertEqual(self.p32["deployable_platforms"], ["linux"])
+        self.assertNotIn("windows", self.p32["policy_artifacts"])
         self.assertEqual(self.p32["blocking_reasons"], [])
         self.assertRegex(self.p32["policy_artifacts"]["linux"], r"^sha256:[0-9a-f]{64}$")
 
