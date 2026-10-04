@@ -119,3 +119,19 @@ jobs:
         run: |
           $shellPath = (Get-Command powershell.exe).Source
           python tests/compatibility/run_windows_native_probe.py --opencode $env:OPENCODE_RUNTIME_BINARY --shell $shellPath
+      - name: Verify reversible Windows native diagnostics installation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $project = Join-Path $env:RUNNER_TEMP 'native-diagnostics-project'
+          New-Item -ItemType Directory -Path $project | Out-Null
+          python tools/windows_native_diagnostics.py enable --project $project --opencode $env:OPENCODE_RUNTIME_BINARY
+          if ($LASTEXITCODE -ne 0) { throw 'Enable failed' }
+          $status = python tools/windows_native_diagnostics.py status --project $project | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $status.state -ne 'INSTALLED') { throw 'Status mismatch' }
+          python tools/windows_native_diagnostics.py disable --project $project
+          if ($LASTEXITCODE -ne 0 -or (Test-Path (Join-Path $project 'opencode.json'))) { throw 'Disable failed' }
+          Set-Content -Path (Join-Path $project 'opencode.json') -Value '{"permission":{"bash":"deny"}}'
+          python tools/windows_native_diagnostics.py enable --project $project --opencode $env:OPENCODE_RUNTIME_BINARY
+          if ($LASTEXITCODE -ne 2) { throw 'Existing project config was not preserved' }
+          if ((Get-Content (Join-Path $project 'opencode.json') -Raw) -notmatch '"bash":"deny"') { throw 'Existing config changed' }
