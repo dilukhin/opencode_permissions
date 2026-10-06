@@ -1,5 +1,6 @@
 import copy
 import json
+import importlib.util
 import sys
 from pathlib import Path
 import unittest
@@ -10,6 +11,12 @@ sys.path.insert(0, str(TOOLS))
 
 import classifier_core as core  # noqa: E402
 import classifier_wrappers as wrappers  # noqa: E402
+
+BROKER_MODULE = ROOT / "tests" / "authorization_broker" / "state_model.py"
+_broker_spec = importlib.util.spec_from_file_location("sudo_job_broker_state_model", BROKER_MODULE)
+broker_state = importlib.util.module_from_spec(_broker_spec)
+assert _broker_spec.loader is not None
+_broker_spec.loader.exec_module(broker_state)
 
 CASES = ROOT / "tests" / "classifier_cases" / "dc3_cases.json"
 
@@ -274,6 +281,33 @@ class DC3WrapperRemoteTests(unittest.TestCase):
         mismatch = wrappers.analyze_wrapper(wrapper_fact(case))
         self.assertIsNone(mismatch["operation_identity"])
         self.assertEqual("ASK_USER", mismatch["decision"])
+
+    def test_sudo_job_one_time_grant_is_bound_to_exact_operation_identity(self):
+        case = copy.deepcopy(self.by_id["ssh_sudo_job_start_benign"])
+        exact = wrappers.analyze_wrapper(wrapper_fact(case))
+        operation_identity = exact["operation_identity"]
+        self.assertRegex(operation_identity, r"^sha256:[0-9a-f]{64}$")
+
+        source = ("session-sudo-job", "message-1", "call-1")
+        broker = broker_state.BrokerStateModel()
+        authorization_id = broker.request("host-peer", operation_identity, source, "ASK_USER")
+        broker.approve_once(authorization_id)
+
+        changed_case = copy.deepcopy(case)
+        changed_case["sudo_job_identity"]["value"]["verified_identity"]["connection_generation"] = 8
+        changed = wrappers.analyze_wrapper(wrapper_fact(changed_case))
+        self.assertNotEqual(operation_identity, changed["operation_identity"])
+        with self.assertRaises(broker_state.BrokerContractError) as mismatch:
+            broker.consume("pep-peer", authorization_id, changed["operation_identity"], source)
+        self.assertEqual("OPERATION_IDENTITY_MISMATCH", mismatch.exception.code)
+
+        self.assertEqual(
+            "ALLOW_EXECUTION_ONCE",
+            broker.consume("pep-peer", authorization_id, operation_identity, source),
+        )
+        with self.assertRaises(broker_state.BrokerContractError) as replay:
+            broker.consume("pep-peer", authorization_id, operation_identity, source)
+        self.assertEqual("GRANT_ALREADY_CONSUMED", replay.exception.code)
 
     def test_native_deny_remains_terminal(self):
         _, classifier, combined = self.result("native_deny_terminal")
