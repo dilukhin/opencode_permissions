@@ -132,6 +132,65 @@ def validate_operation_completeness(operation: dict[str, Any]) -> dict[str, Any]
             "REMOTE_HOST_TARGET_MISMATCH",
         )
 
+    elif kind == "sudo_job":
+        _require(ekind == "sudo_job", "OPERATION_EXECUTION_KIND_MISMATCH")
+        _require(execution.get("transport") == "ssh_relay", "SUDO_JOB_TRANSPORT_REQUIRED")
+        _require(execution.get("operation") in {"start", "status", "tail", "wait", "stop"}, "SUDO_JOB_OPERATION_REQUIRED")
+        uuid_re = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+        sha_re = re.compile(r"^[0-9a-f]{64}$")
+        fingerprint_re = re.compile(r"^SHA256:[A-Za-z0-9+/]{43}$")
+        source_sha_re = re.compile(r"^[0-9a-f]{40}$")
+        _require(isinstance(execution.get("job_id"), str) and uuid_re.fullmatch(execution["job_id"]), "SUDO_JOB_ID_REQUIRED")
+        _require(isinstance(execution.get("transaction_id"), str) and uuid_re.fullmatch(execution["transaction_id"]), "SUDO_JOB_TRANSACTION_ID_REQUIRED")
+        _require(isinstance(execution.get("command_sha256"), str) and sha_re.fullmatch(execution["command_sha256"]), "SUDO_JOB_COMMAND_HASH_REQUIRED")
+        _require(execution.get("privilege") == "root", "SUDO_JOB_ROOT_PRIVILEGE_REQUIRED")
+
+        remote = core.get("remote")
+        _require(isinstance(remote, dict), "REMOTE_IDENTITY_REQUIRED")
+        _require(remote.get("transport") == "ssh_relay", "REMOTE_TRANSPORT_REQUIRED")
+        _require(isinstance(remote.get("host_identity"), str) and remote["host_identity"], "REMOTE_HOST_IDENTITY_REQUIRED")
+        host_targets = [t for t in core["targets"] if t["role"] == "host" and t["kind"] == "host"]
+        _require(
+            any(t["identity"].get("canonical") == remote["host_identity"] for t in host_targets),
+            "REMOTE_HOST_TARGET_MISMATCH",
+        )
+        job_targets = [t for t in core["targets"] if t["role"] == "job" and t["kind"] == "remote_job"]
+        _require(
+            any(t["identity"].get("canonical") == execution["job_id"] for t in job_targets),
+            "SUDO_JOB_TARGET_MISMATCH",
+        )
+
+        dependencies = core["context_dependencies"]
+        _require(len(dependencies) == 1, "SUDO_JOB_VERIFIED_IDENTITY_REQUIRED")
+        dependency = dependencies[0]
+        _require(dependency.get("kind") == "ssh_relay_verified_identity", "SUDO_JOB_VERIFIED_IDENTITY_REQUIRED")
+        _require(isinstance(dependency.get("source_path"), str) and dependency["source_path"], "SUDO_JOB_IDENTITY_PATH_REQUIRED")
+        _require(isinstance(dependency.get("source_object_identity"), str) and dependency["source_object_identity"], "SUDO_JOB_IDENTITY_OBJECT_REQUIRED")
+        _require(isinstance(dependency.get("remote_host"), str) and dependency["remote_host"], "SUDO_JOB_REMOTE_HOST_REQUIRED")
+        _require(type(dependency.get("remote_port")) is int and 1 <= dependency["remote_port"] <= 65535, "SUDO_JOB_REMOTE_PORT_REQUIRED")
+        _require(isinstance(dependency.get("remote_user"), str) and dependency["remote_user"], "SUDO_JOB_REMOTE_USER_REQUIRED")
+        _require(isinstance(dependency.get("host_key_algorithm"), str) and dependency["host_key_algorithm"], "SUDO_JOB_HOST_KEY_ALGORITHM_REQUIRED")
+        _require(
+            isinstance(dependency.get("remote_host_key_sha256"), str)
+            and fingerprint_re.fullmatch(dependency["remote_host_key_sha256"]),
+            "SUDO_JOB_HOST_KEY_REQUIRED",
+        )
+        _require(
+            isinstance(dependency.get("daemon_instance_id"), str)
+            and uuid_re.fullmatch(dependency["daemon_instance_id"]),
+            "SUDO_JOB_DAEMON_INSTANCE_REQUIRED",
+        )
+        _require(
+            type(dependency.get("connection_generation")) is int
+            and dependency["connection_generation"] >= 1,
+            "SUDO_JOB_CONNECTION_GENERATION_REQUIRED",
+        )
+        _require(
+            isinstance(dependency.get("daemon_source_sha"), str)
+            and source_sha_re.fullmatch(dependency["daemon_source_sha"]),
+            "SUDO_JOB_DAEMON_SOURCE_REQUIRED",
+        )
+
     elif kind == "transfer":
         _require(ekind == "transfer", "OPERATION_EXECUTION_KIND_MISMATCH")
         _require(execution.get("direction") in {"upload", "download"}, "TRANSFER_DIRECTION_REQUIRED")
