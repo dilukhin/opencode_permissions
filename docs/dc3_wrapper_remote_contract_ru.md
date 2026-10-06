@@ -212,6 +212,14 @@ hash дополнительно вычисляется из точных UTF-8 �
 доказательством разрешения. Отсутствие/дрейф binding даёт `ASK_USER` без
 `operation_identity`.
 
+Чтобы не расширять общий набор видов `NormalizedOperation` и не менять существующий
+P0 runtime artifact, `sudo-job` использует уже поддерживаемый контейнер
+`operation_kind=remote_exec` / `execution.kind=remote_argv`. Его `argv` — не
+командная строка root-процесса, а несекретный точный вектор привязки
+`sudo-job + operation + job_id + transaction_id + command_sha256`; полный payload
+по-прежнему анализируется отдельно. Поля `sudo_job_operation`, `privilege` и
+verified identity остаются частью канонической identity.
+
 ## 6. Projection
 
 Machine-readable projection:

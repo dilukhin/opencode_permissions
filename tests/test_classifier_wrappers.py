@@ -232,9 +232,11 @@ class DC3WrapperRemoteTests(unittest.TestCase):
         self.assertEqual("ASK_USER", combined["decision"])
         self.assertRegex(classifier["operation_identity"], r"^sha256:[0-9a-f]{64}$")
         operation = classifier["normalized_operation"]
-        self.assertEqual("sudo_job", operation["operation_kind"])
-        self.assertEqual("start", operation["execution"]["operation"])
+        self.assertEqual("remote_exec", operation["operation_kind"])
+        self.assertEqual("start", operation["execution"]["sudo_job_operation"])
         self.assertEqual("root", operation["execution"]["privilege"])
+        self.assertEqual("remote_argv", operation["execution"]["kind"])
+        self.assertEqual(operation["execution"]["command_sha256"], operation["execution"]["argv"][-1])
 
     def test_sudo_job_destructive_child_denies(self):
         _, classifier, combined = self.result("ssh_sudo_job_start_system_write")
