@@ -1,3 +1,4 @@
+import copy
 import json
 import sys
 from pathlib import Path
@@ -119,6 +120,8 @@ def wrapper_fact(case):
         )
     if "remote_command" in case:
         fact["remote_command"] = case["remote_command"]
+    if "sudo_job_identity" in case:
+        fact["sudo_job_identity"] = copy.deepcopy(case["sudo_job_identity"])
     if "remote_payload_argv" in case:
         fact["remote_payload"] = {
             "status": "exact",
@@ -222,6 +225,53 @@ class DC3WrapperRemoteTests(unittest.TestCase):
         _, classifier, _ = self.result("ssh_job_tail")
         self.assertEqual(classifier["decision"], "ASK_USER")
         self.assertIn("possible_sensitive_output", classifier["effects"])
+
+    def test_sudo_job_start_has_exact_identity_but_remains_ask(self):
+        _, classifier, combined = self.result("ssh_sudo_job_start_benign")
+        self.assertEqual("ASK_USER", classifier["decision"])
+        self.assertEqual("ASK_USER", combined["decision"])
+        self.assertRegex(classifier["operation_identity"], r"^sha256:[0-9a-f]{64}$")
+        operation = classifier["normalized_operation"]
+        self.assertEqual("sudo_job", operation["operation_kind"])
+        self.assertEqual("start", operation["execution"]["operation"])
+        self.assertEqual("root", operation["execution"]["privilege"])
+
+    def test_sudo_job_destructive_child_denies(self):
+        _, classifier, combined = self.result("ssh_sudo_job_start_system_write")
+        self.assertEqual("DENY", classifier["decision"])
+        self.assertEqual("DENY", combined["decision"])
+        self.assertIn("system", classifier["effects"])
+
+    def test_sudo_job_read_and_stop_remain_ask(self):
+        for case_id in ("ssh_sudo_job_status", "ssh_sudo_job_tail", "ssh_sudo_job_stop"):
+            with self.subTest(case_id=case_id):
+                _, classifier, combined = self.result(case_id)
+                self.assertEqual("ASK_USER", classifier["decision"])
+                self.assertEqual("ASK_USER", combined["decision"])
+                self.assertRegex(classifier["operation_identity"], r"^sha256:[0-9a-f]{64}$")
+        _, tail, _ = self.result("ssh_sudo_job_tail")
+        self.assertIn("possible_sensitive_output", tail["effects"])
+        _, stop, _ = self.result("ssh_sudo_job_stop")
+        self.assertIn("process_control", stop["effects"])
+        self.assertIn("privilege", stop["effects"])
+
+    def test_sudo_job_identity_file_is_not_self_approval(self):
+        _, classifier, combined = self.result("ssh_sudo_job_missing_binding")
+        self.assertEqual("ASK_USER", classifier["decision"])
+        self.assertEqual("ASK_USER", combined["decision"])
+        self.assertIsNone(classifier["operation_identity"])
+        self.assertIn("unknown", classifier["effects"])
+
+    def test_sudo_job_binding_drift_changes_or_removes_identity(self):
+        case = copy.deepcopy(self.by_id["ssh_sudo_job_start_benign"])
+        first = wrappers.analyze_wrapper(wrapper_fact(case))
+        case["sudo_job_identity"]["value"]["verified_identity"]["connection_generation"] = 8
+        changed = wrappers.analyze_wrapper(wrapper_fact(case))
+        self.assertNotEqual(first["operation_identity"], changed["operation_identity"])
+        case["sudo_job_identity"]["value"]["transaction_id"] = "33333333-3333-4333-8333-333333333333"
+        mismatch = wrappers.analyze_wrapper(wrapper_fact(case))
+        self.assertIsNone(mismatch["operation_identity"])
+        self.assertEqual("ASK_USER", mismatch["decision"])
 
     def test_native_deny_remains_terminal(self):
         _, classifier, combined = self.result("native_deny_terminal")

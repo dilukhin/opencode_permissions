@@ -192,6 +192,26 @@ Missing remote host/source/destination identity -> ASK без identity.
 
 `job stop` отмечается как process control / remote state change и остаётся ASK.
 
+### Длительные sudo-job (#46)
+
+`sudo-job start/status/tail/wait/stop` распознаются отдельно от обычного `job`.
+Ни один путь не получает автоматического `ALLOW`.
+
+Для `start` вложенная удалённая команда анализируется тем же bounded-анализатором:
+подтверждённый hard DENY сохраняется, остальные случаи требуют решения пользователя.
+`status` и `wait` — наблюдение состояния, `tail` дополнительно помечается
+`possible_sensitive_output`, а `stop` — отдельная root-мутация управления
+процессом.
+
+Воспроизводимая `operation_identity` создаётся только при наличии доверенного
+`sudo_job_identity`: UUID задания/транзакции, SHA-256 команды, object identity
+файла ожидания и полная проверенная SSH identity (endpoint, host key, daemon
+instance/generation/source SHA). Эти поля сверяются с точным argv; для `start`
+hash дополнительно вычисляется из точных UTF-8 байт удалённой команды.
+Сам путь `--expected-identity-file`, UUID или caller-controlled JSON не является
+доказательством разрешения. Отсутствие/дрейф binding даёт `ASK_USER` без
+`operation_identity`.
+
 ## 6. Projection
 
 Machine-readable projection:
@@ -200,7 +220,7 @@ Machine-readable projection:
 tests/classifier_cases/dc3_cases.json
 ```
 
-20 cases покрывают:
+26 cases покрывают:
 
 - benign agent-safe controlled payload;
 - nested system write;
@@ -213,6 +233,7 @@ tests/classifier_cases/dc3_cases.json
 - upload/download exact identity;
 - job start benign/destructive;
 - job tail sensitivity;
+- sudo-job start/read/tail/stop, destructive child и отсутствие trusted binding;
 - unknown/opaque wrapper;
 - native DENY terminal;
 - incomplete transfer identity.

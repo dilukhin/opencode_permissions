@@ -9,6 +9,9 @@ unless a hard DENY is proven.
 from __future__ import annotations
 
 import copy
+import hashlib
+import re
+import uuid
 from typing import Any, Iterable
 
 from classifier_analyzers import analyze_simple
@@ -339,6 +342,242 @@ def _remote_exec_decision(
     )
 
 
+
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+_FINGERPRINT = re.compile(r"SHA256:[A-Za-z0-9+/]{43}\Z")
+_SOURCE_SHA = re.compile(r"[0-9a-f]{40}\Z")
+_SUDO_JOB_BINDING_FIELDS = {
+    "job_id", "transaction_id", "command_sha256", "identity_file_path",
+    "identity_file_object_identity", "verified_identity",
+}
+_VERIFIED_IDENTITY_FIELDS = {
+    "remote_host", "remote_port", "remote_user", "host_key_algorithm",
+    "remote_host_key_sha256", "daemon_instance_id", "connection_generation",
+    "daemon_source_sha",
+}
+
+
+def _flag_once(args: list[str], name: str) -> str | None:
+    positions = [index for index, value in enumerate(args) if value == name]
+    if len(positions) != 1:
+        return None
+    index = positions[0]
+    if index + 1 >= len(args):
+        return None
+    return args[index + 1]
+
+
+def _canonical_uuid(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = str(uuid.UUID(value))
+    except (ValueError, AttributeError):
+        return None
+    return parsed if parsed == value else None
+
+
+def _trusted_sudo_job_binding(
+    fact: dict[str, Any],
+    subargs: list[str],
+    operation: str,
+    remote_command: str | None,
+) -> dict[str, Any] | None:
+    envelope = fact.get("sudo_job_identity")
+    if not isinstance(envelope, dict) or envelope.get("status") != EXACT:
+        return None
+    value = envelope.get("value")
+    if not isinstance(value, dict) or set(value) != _SUDO_JOB_BINDING_FIELDS:
+        return None
+    job_id = _canonical_uuid(value.get("job_id"))
+    transaction_id = _canonical_uuid(value.get("transaction_id"))
+    command_sha256 = value.get("command_sha256")
+    identity_path = value.get("identity_file_path")
+    identity_object = value.get("identity_file_object_identity")
+    verified = value.get("verified_identity")
+    if (
+        job_id is None
+        or transaction_id is None
+        or not isinstance(command_sha256, str)
+        or _SHA256.fullmatch(command_sha256) is None
+        or not isinstance(identity_path, str)
+        or not identity_path
+        or not isinstance(identity_object, str)
+        or not identity_object
+        or not isinstance(verified, dict)
+        or set(verified) != _VERIFIED_IDENTITY_FIELDS
+    ):
+        return None
+    if (
+        not isinstance(verified.get("remote_host"), str)
+        or not verified["remote_host"]
+        or type(verified.get("remote_port")) is not int
+        or not 1 <= verified["remote_port"] <= 65535
+        or not isinstance(verified.get("remote_user"), str)
+        or not verified["remote_user"]
+        or not isinstance(verified.get("host_key_algorithm"), str)
+        or not verified["host_key_algorithm"]
+        or not isinstance(verified.get("remote_host_key_sha256"), str)
+        or _FINGERPRINT.fullmatch(verified["remote_host_key_sha256"]) is None
+        or _canonical_uuid(verified.get("daemon_instance_id")) is None
+        or type(verified.get("connection_generation")) is not int
+        or verified["connection_generation"] < 1
+        or not isinstance(verified.get("daemon_source_sha"), str)
+        or _SOURCE_SHA.fullmatch(verified["daemon_source_sha"]) is None
+    ):
+        return None
+    if (
+        _flag_once(subargs, "--job-id") != job_id
+        or _flag_once(subargs, "--transaction-id") != transaction_id
+        or _flag_once(subargs, "--expected-identity-file") != identity_path
+    ):
+        return None
+    if operation == "start":
+        if not isinstance(remote_command, str):
+            return None
+        actual_hash = hashlib.sha256(remote_command.encode("utf-8")).hexdigest()
+        if actual_hash != command_sha256:
+            return None
+    elif _flag_once(subargs, "--command-sha256") != command_sha256:
+        return None
+    return {
+        "job_id": job_id,
+        "transaction_id": transaction_id,
+        "command_sha256": command_sha256,
+        "identity_file_path": identity_path,
+        "identity_file_object_identity": identity_object,
+        "verified_identity": copy.deepcopy(verified),
+    }
+
+
+def _sudo_job_operation(
+    fact: dict[str, Any],
+    subargs: list[str],
+    operation: str,
+    remote_command: str | None,
+    effects: list[str],
+) -> dict[str, Any] | None:
+    binding = _trusted_sudo_job_binding(fact, subargs, operation, remote_command)
+    host = _remote_host_target(fact)
+    remote = fact.get("remote")
+    if binding is None or host is None or not isinstance(remote, dict):
+        return None
+    targets = _merge_targets(
+        _targets(fact),
+        [host, {
+            "role": "job",
+            "kind": "remote_job",
+            "identity": {"canonical": binding["job_id"]},
+        }],
+    )
+    verified = binding["verified_identity"]
+    dependency = {
+        "kind": "ssh_relay_verified_identity",
+        "source_path": binding["identity_file_path"],
+        "source_object_identity": binding["identity_file_object_identity"],
+        **verified,
+    }
+    return {
+        "schema": "normalized-operation/v1",
+        "canonicalization": "op-jcs-v1",
+        "platform": fact["platform"],
+        "channel": "remote",
+        "operation_kind": "sudo_job",
+        "execution": {
+            "kind": "sudo_job",
+            "transport": "ssh_relay",
+            "operation": operation,
+            "job_id": binding["job_id"],
+            "transaction_id": binding["transaction_id"],
+            "command_sha256": binding["command_sha256"],
+            "privilege": "root",
+        },
+        "remote": {
+            "transport": "ssh_relay",
+            "host_identity": remote["host_identity"],
+        },
+        "targets": targets,
+        "effects": effects,
+        "context_dependencies": [dependency],
+    }
+
+
+def _sudo_job_decision(fact: dict[str, Any], subargs: list[str]) -> dict[str, Any]:
+    targets = _targets(fact)
+    if not subargs:
+        return _ask(
+            "ssh_relay.sudo_job_shape_unknown",
+            effects=["process", "network", "remote_job", "privilege", "unknown"],
+            targets=targets,
+        )
+    operation = subargs[0]
+    command_args = subargs[1:]
+    if operation not in {"start", "status", "tail", "wait", "stop"}:
+        return _ask(
+            "ssh_relay.sudo_job_unknown",
+            effects=["process", "network", "remote_job", "privilege", "unknown"],
+            targets=targets,
+        )
+
+    raw = fact.get("remote_command") if operation == "start" else None
+    child = None
+    effects = ["process", "network", "remote_job"]
+    if operation == "start":
+        effects.extend(["remote_execution", "privilege", "remote_state_change"])
+        if not isinstance(raw, str) or not raw:
+            return _ask(
+                "ssh_relay.sudo_job_payload_missing",
+                effects=_merge_effects(effects, ["unknown_code_execution"]),
+                targets=targets,
+            )
+        child = _remote_payload_child(fact, raw)
+        if child is None:
+            return _ask(
+                "ssh_relay.sudo_job_remote_shell_unproven",
+                effects=_merge_effects(effects, ["unknown_code_execution"]),
+                targets=targets,
+            )
+        nested = analyze_simple(copy.deepcopy(child))
+        effects = _merge_effects(effects, nested["effects"])
+        targets = _merge_targets(targets, nested["targets"])
+        if nested["decision"] == "DENY":
+            return deny_result(
+                reason_codes=["ssh_relay.sudo_job_remote_child_deny"],
+                effects=effects,
+                targets=targets,
+            )
+    elif operation in {"status", "wait", "tail"}:
+        effects.extend(["read", "remote_status"])
+        if operation == "tail":
+            effects.append("possible_sensitive_output")
+    else:
+        effects.extend(["privilege", "process_control", "remote_state_change"])
+
+    normalized = _sudo_job_operation(fact, command_args, operation, raw, effects)
+    if normalized is None:
+        return _ask(
+            "ssh_relay.sudo_job_binding_missing_or_mismatch",
+            effects=_merge_effects(effects, ["unknown"]),
+            targets=targets,
+        )
+    reason = (
+        "ssh_relay.sudo_job_start_authorization_required"
+        if operation == "start"
+        else "ssh_relay.sudo_job_stop_authorization_required"
+        if operation == "stop"
+        else "ssh_relay.sudo_job_read_control"
+    )
+    return make_result(
+        "ASK_USER",
+        reason_codes=[reason],
+        effects=effects,
+        targets=normalized["targets"],
+        uncertainties=["ssh_relay.sudo_job_human_authorization_required"],
+        normalized_operation=normalized,
+        classifier_profile_id="sudo-job-v1",
+    )
+
+
 def _transfer_operation(
     fact: dict[str, Any],
     *,
@@ -429,6 +668,9 @@ def _analyze_ssh_relay(fact: dict[str, Any], args: list[str]) -> dict[str, Any]:
             normalized_operation=operation,
             classifier_profile_id="dc3-wrapper-remote-v1",
         )
+
+    if subcommand == "sudo-job":
+        return _sudo_job_decision(fact, subargs)
 
     if subcommand == "job":
         if not subargs:
