@@ -377,12 +377,61 @@ def _canonical_uuid(value: object) -> str | None:
     return parsed if parsed == value else None
 
 
+def _sudo_job_cli_valid(args: list[str], operation: str, raw: str | None) -> bool:
+    """Разбирает только проверенные полные формы CLI; прочие остаются ASK."""
+    options = {"--name", "-n", "--job-id", "--transaction-id", "--expected-identity-file"}
+    if operation != "start":
+        options.add("--command-sha256")
+    if operation == "tail":
+        options.update({"--stream", "--bytes"})
+    if operation == "wait":
+        options.update({"--timeout", "--poll-interval"})
+    seen: dict[str, str] = {}
+    positionals: list[str] = []
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token == "--":
+            positionals.extend(args[index + 1:])
+            break
+        if token in options:
+            key = "--name" if token == "-n" else token
+            if key in seen or index + 1 >= len(args) or not args[index + 1] or args[index + 1].startswith("-"):
+                return False
+            seen[key] = args[index + 1]
+            index += 2
+            continue
+        if token.startswith("-"):
+            return False
+        positionals.append(token)
+        index += 1
+    required = {"--job-id", "--transaction-id", "--expected-identity-file"}
+    if operation != "start":
+        required.add("--command-sha256")
+    if not required.issubset(seen):
+        return False
+    if positionals != ([raw] if operation == "start" else []):
+        return False
+    if "--stream" in seen and seen["--stream"] not in {"stdout", "stderr"}:
+        return False
+    for key, maximum in (("--bytes", 65536), ("--timeout", 86400), ("--poll-interval", 60)):
+        if key in seen:
+            try:
+                if not 1 <= int(seen[key]) <= maximum:
+                    return False
+            except ValueError:
+                return False
+    return True
+
+
 def _trusted_sudo_job_binding(
     fact: dict[str, Any],
     subargs: list[str],
     operation: str,
     remote_command: str | None,
 ) -> dict[str, Any] | None:
+    if not _sudo_job_cli_valid(subargs, operation, remote_command):
+        return None
     envelope = fact.get("sudo_job_identity")
     if not isinstance(envelope, dict) or envelope.get("status") != EXACT:
         return None
@@ -498,6 +547,13 @@ def _sudo_job_operation(
             "transaction_id": binding["transaction_id"],
             "command_sha256": binding["command_sha256"],
             "privilege": "root",
+            # Несекретный hash связывает весь внешний вызов, включая relay
+            # session, лимиты чтения/ожидания, executable и рабочий каталог.
+            "relay_invocation_sha256": hashlib.sha256(jcs_dumps({
+                "argv": fact["argv"],
+                "executable": fact["executable"],
+                "cwd": fact["cwd"],
+            }).encode("utf-8")).hexdigest(),
         },
         "remote": {
             "transport": "ssh_relay",

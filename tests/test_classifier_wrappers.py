@@ -282,6 +282,51 @@ class DC3WrapperRemoteTests(unittest.TestCase):
         self.assertIsNone(mismatch["operation_identity"])
         self.assertEqual("ASK_USER", mismatch["decision"])
 
+    def test_sudo_job_invocation_drift_cannot_reuse_one_time_grant(self):
+        original = wrapper_fact(copy.deepcopy(self.by_id["ssh_sudo_job_tail"]))
+        baseline = wrappers.analyze_wrapper(original)["operation_identity"]
+        self.assertIsNotNone(baseline)
+        variants = []
+        for flag, value in (("--name", "other"), ("--stream", "stderr"), ("--bytes", "32")):
+            changed = copy.deepcopy(original)
+            if flag in changed["argv"]:
+                changed["argv"][changed["argv"].index(flag) + 1] = value
+            else:
+                changed["argv"].extend([flag, value])
+            variants.append(changed)
+        for field in ("executable", "cwd"):
+            changed = copy.deepcopy(original)
+            changed[field]["object_identity"] += ":replaced"
+            variants.append(changed)
+        for changed in variants:
+            with self.subTest(changed=changed):
+                identity = wrappers.analyze_wrapper(changed)["operation_identity"]
+                self.assertIsNotNone(identity)
+                self.assertNotEqual(baseline, identity)
+                broker = broker_state.BrokerStateModel()
+                source = ("session", "message", "call")
+                grant = broker.request("host-peer", baseline, source, "ASK_USER")
+                broker.approve_once(grant)
+                with self.assertRaises(broker_state.BrokerContractError):
+                    broker.consume("pep-peer", grant, identity, source)
+
+    def test_sudo_job_start_payload_must_match_actual_cli(self):
+        case = copy.deepcopy(self.by_id["ssh_sudo_job_start_benign"])
+        case["argv"][-1] = "touch /etc/example"
+        result = wrappers.analyze_wrapper(wrapper_fact(case))
+        self.assertEqual("ASK_USER", result["decision"])
+        self.assertIsNone(result["operation_identity"])
+
+    def test_sudo_job_unknown_duplicate_or_invalid_options_have_no_identity(self):
+        case = self.by_id["ssh_sudo_job_tail"]
+        for extra in (["--force"], ["--name", "prod"], ["--bytes", "65537"], ["--stream", "invalid"]):
+            with self.subTest(extra=extra):
+                fact = wrapper_fact(copy.deepcopy(case))
+                fact["argv"].extend(extra)
+                result = wrappers.analyze_wrapper(fact)
+                self.assertEqual("ASK_USER", result["decision"])
+                self.assertIsNone(result["operation_identity"])
+
     def test_sudo_job_one_time_grant_is_bound_to_exact_operation_identity(self):
         case = copy.deepcopy(self.by_id["ssh_sudo_job_start_benign"])
         exact = wrappers.analyze_wrapper(wrapper_fact(case))
