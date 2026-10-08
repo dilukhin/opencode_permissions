@@ -185,10 +185,12 @@ def probe(binary, mode, shell_fixture=None):
             require(reply(base, password, target, stop["id"], "reject") == 204, "STOP_REJECT_FAILED")
             status, saved = http(base, password, "GET", "/api/permission/saved")
             require(status == 200 and saved["data"] == [], "ONE_TIME_REPLY_SAVED_APPROVAL")
+            plugin = shell_fixture.probe_plugin(base, password, target, other) if shell_fixture is not None else None
             return {"mode": mode, "missing_auth_rejected": True, "cross_session_rejected": True,
                     "replay_rejected": True, "reject_observed": True, "deny_observed": True,
                     "separate_stop_observed": True, "saved_approvals_empty": True,
-                    "child": child, "reply_source": "scripted API / synthetic child, not human UI"}
+                    "child": child, "plugin": plugin,
+                    "reply_source": "scripted API / synthetic child or fixture plugin, not human UI"}
         finally:
             # Завершается только созданный этим опытом process object.
             if process.poll() is None:

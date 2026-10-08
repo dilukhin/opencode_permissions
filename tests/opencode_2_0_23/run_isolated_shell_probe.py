@@ -16,8 +16,9 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 
-from run_boundary_probe import SOURCE_SHA, VERSION, probe, require
+from run_boundary_probe import SOURCE_SHA, VERSION, ask, http, pending_ids, probe, reply, require, session
 
 
 class IsolatedShell:
@@ -87,6 +88,19 @@ class IsolatedShell:
         )
         wrapper.chmod(0o755)
         environment["SHELL"] = str(wrapper)
+        plugin = root / "reply-plugin"
+        plugin.mkdir(mode=0o755)
+        shutil.copyfile(Path(__file__).with_name("reply_plugin.js"), plugin / "index.js")
+        (plugin / "index.js").chmod(0o644)
+        (plugin / "package.json").write_text('{"type":"module","main":"index.js"}', encoding="utf-8")
+        self.plugin_output = project / "plugin-result.json"
+        configuration = root / "config" / "opencode.json"
+        configuration.write_text(json.dumps({"plugins": [{
+            "package": str(plugin), "options": {"evidenceFile": str(self.plugin_output)},
+        }]}), encoding="utf-8")
+        configuration.chmod(0o600)
+        os.chown(configuration, self.host.pw_uid, self.host.pw_gid)
+        environment["OPENCODE_CONFIG"] = str(configuration)
         self.environment = {"PATH": "/usr/bin:/bin", "HOME": str(tool_home), "PYTHONIOENCODING": "utf-8"}
         self.project, self.dropper = project, dropper
         self.thread = threading.Thread(target=self.serve, daemon=True)
@@ -146,6 +160,52 @@ class IsolatedShell:
         if self.listener is not None:
             self.listener.close()
         require(self.error is None, "LAUNCHER_FAILED")
+
+    def probe_plugin(self, base, password, target, other):
+        deadline = time.monotonic() + 10
+        while not self.plugin_output.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        require(self.plugin_output.exists(), "REAL_PLUGIN_NOT_LOADED")
+        observed = json.loads(self.plugin_output.read_text())
+        require(observed["loaded"] and observed["host_uid"] == self.host.pw_uid, "PLUGIN_HOST_UID_MISMATCH")
+        request = ask(base, password, target)
+        require(request["effect"] == "ask", "PLUGIN_TARGET_NOT_PENDING")
+
+        def trigger(caller, target_session):
+            status, body = http(base, password, "POST", f"/api/session/{caller}/permission", {
+                "action": "probe.plugin.reply", "resources": ["synthetic-only"], "save": [],
+                "metadata": {"targetSession": target_session, "targetRequest": request["id"]},
+            })
+            require(status == 200 and body["data"]["effect"] == "deny", "PLUGIN_TRIGGER_FAILED")
+            return json.loads(self.plugin_output.read_text())
+
+        wrong = trigger(other, other)
+        require(wrong["reply_accepted"] is False, "PLUGIN_WRONG_SESSION_ACCEPTED")
+        require(request["id"] in pending_ids(base, password, target), "PLUGIN_MISMATCH_CONSUMED_REQUEST")
+        accepted = trigger(other, target)
+        require(accepted["reply_accepted"] is True, "PLUGIN_DIRECT_REPLY_NOT_ACCEPTED")
+        require(request["id"] not in pending_ids(base, password, target), "PLUGIN_REPLY_NOT_CONSUMED")
+        replayed = trigger(other, target)
+        require(replayed["reply_accepted"] is False, "PLUGIN_REPLAY_ACCEPTED")
+
+        request = ask(base, password, target)
+        denied = session(base, password, self.project)
+        # Правило deny для самого trigger применяется до plugin hooks.
+        status, _ = http(base, password, "PATCH", f"/api/session/{denied}", {
+            "permissions": [{"action": "probe.plugin.reply", "resource": "*", "effect": "deny"}],
+        })
+        require(status == 204, "PLUGIN_DENY_SESSION_UPDATE_FAILED")
+        before = self.plugin_output.read_bytes()
+        trigger(denied, target)
+        require(self.plugin_output.read_bytes() == before, "DENY_RAN_PLUGIN_HOOK")
+        require(request["id"] in pending_ids(base, password, target), "PLUGIN_DENY_CONSUMED_REQUEST")
+        require(reply(base, password, target, request["id"], "reject") == 204, "PLUGIN_TARGET_CLEANUP_FAILED")
+        status, saved = http(base, password, "GET", "/api/permission/saved")
+        require(status == 200 and saved["data"] == [], "PLUGIN_ONCE_SAVED_APPROVAL")
+        return {"loaded_in_real_host": True, "host_uid": self.host.pw_uid, "reply_accepted": True,
+                "api_password_parameter": False, "wrong_session_rejected": True,
+                "replay_rejected": True, "configured_deny_preserved": True,
+                "scope": "loaded synthetic plugin invokes permission.reply; no human UI"}
 
 
 def self_check():
@@ -207,14 +267,15 @@ def main():
             "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(), "modes": modes,
             "host_uid": pwd.getpwnam("daemon").pw_uid, "tools_uid": pwd.getpwnam("nobody").pw_uid,
             "isolation_scope": "Session.shell only; root-owned test launcher, not approval broker",
-            "actual_human_ui_proof": False, "untrusted_plugin_runtime_proof": False,
+            "actual_human_ui_proof": False, "untrusted_plugin_runtime_proof": True,
             "native_sudo_job_admission_ready": False, "remote_mutations": False,
         }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps({"isolated_shell_probe_completed": True, "native_sudo_job_admission_ready": False,
                       "child_can_reply": {item["mode"]: item["child"]["reply_accepted"] for item in modes},
-                      "child_proc_readable": {item["mode"]: item["child"]["proc_readable"] for item in modes}}))
+                      "child_proc_readable": {item["mode"]: item["child"]["proc_readable"] for item in modes},
+                      "plugin_can_reply": {item["mode"]: item["plugin"]["reply_accepted"] for item in modes}}))
 
 
 if __name__ == "__main__":
