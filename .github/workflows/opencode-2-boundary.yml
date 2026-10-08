@@ -1,0 +1,93 @@
+name: OpenCode 2.0.23 permission boundary experiment
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/opencode-2-boundary.yml'
+      - 'tests/opencode_2_0_23/**'
+      - 'docs/sudo_job_opencode_2_0_23*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opencode-2-boundary-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  boundary:
+    name: Exact source build and non-mutating permission probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      OPENCODE_VERSION: '2.0.23'
+      OPENCODE_CHANNEL: latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: policy
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: anomalyco/opencode
+          ref: 0fd7e2829449b052abf0078666669302923d77af
+          path: upstream
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Check pinned source and dependency lock
+        working-directory: upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 0fd7e2829449b052abf0078666669302923d77af
+          test "$(bun --version)" = 1.4.2
+          bun install --frozen-lockfile
+      - name: Build exact test binary without web assets
+        working-directory: upstream/packages/cli
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run script/build.ts --single --skip-install --skip-web-ui
+          test "$(dist/cli-linux-x64/bin/opencode --version)" = 2.0.23
+      - name: Test real native waiting and cancellation implementation
+        working-directory: upstream/packages/core
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "$GITHUB_WORKSPACE/policy/tests/opencode_2_0_23/permission_boundary.test.ts" test/sudo-job-permission-boundary.test.ts
+          bun run script/test.ts test/sudo-job-permission-boundary.test.ts
+      - name: Probe actual server and Shell child with synthetic credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python policy/tests/opencode_2_0_23/run_boundary_probe.py \
+            --binary upstream/packages/cli/dist/cli-linux-x64/bin/opencode \
+            --source upstream \
+            --output "$RUNNER_TEMP/opencode-2-evidence/boundary.json"
+      - name: Summarize observations without enabling compatibility profile
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          report = json.loads((Path(os.environ['RUNNER_TEMP']) / 'opencode-2-evidence/boundary.json').read_text())
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as out:
+              out.write('Опыт выполнен. Допуск sudo-job для OpenCode 2.0.23 остаётся закрытым.\n\n')
+              out.write(f"Source SHA: `{report['source_sha']}`\n\nBinary SHA-256: `{report['binary_sha256']}`\n\n")
+              for mode in report['modes']:
+                  out.write(f"- {mode['mode']}: child API reply accepted = {mode['child']['reply_accepted']}\n")
+              out.write('\nAPI reply в этом опыте — имитация интерфейса, а не доказательство согласия человека.\n')
+          PY
+      - name: Preserve sanitized observations
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-2-boundary-${{ github.sha }}
+          path: ${{ runner.temp }}/opencode-2-evidence/boundary.json
+          if-no-files-found: error
+          retention-days: 14
