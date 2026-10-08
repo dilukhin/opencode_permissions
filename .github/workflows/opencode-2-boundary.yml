@@ -90,10 +90,26 @@ jobs:
                   out.write(f"- {mode['mode']}: child API reply accepted = {mode['child']['reply_accepted']}\n")
               out.write('\nAPI reply в этом опыте — имитация интерфейса, а не доказательство согласия человека.\n')
           PY
+      - name: Verify Linux UID isolation fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -- env -i PATH=/usr/bin:/bin /usr/bin/python3 \
+            "$GITHUB_WORKSPACE/policy/tests/opencode_2_0_23/run_isolated_shell_probe.py" --self-check
+      - name: Probe real Shell with isolated Linux tools UID
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -- env -i PATH=/usr/bin:/bin /usr/bin/python3 \
+            "$GITHUB_WORKSPACE/policy/tests/opencode_2_0_23/run_isolated_shell_probe.py" \
+            --binary "$GITHUB_WORKSPACE/upstream/packages/cli/dist/cli-linux-x64/bin/opencode" \
+            --source "$GITHUB_WORKSPACE/upstream" \
+            --output "$RUNNER_TEMP/opencode-2-evidence/isolated-shell.json"
       - name: Preserve sanitized observations
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: opencode-2-boundary-${{ github.sha }}
-          path: ${{ runner.temp }}/opencode-2-evidence/boundary.json
+          path: ${{ runner.temp }}/opencode-2-evidence/*.json
           if-no-files-found: error
           retention-days: 14

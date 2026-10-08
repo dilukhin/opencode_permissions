@@ -101,7 +101,7 @@ def pending_ids(base, password, session_id):
     return [item["id"] for item in body["data"]]
 
 
-def probe(binary, mode):
+def probe(binary, mode, shell_fixture=None):
     with tempfile.TemporaryDirectory(prefix=f"opencode-2-boundary-{mode}-") as temporary:
         root = Path(temporary)
         home = root / "home"
@@ -123,8 +123,14 @@ def probe(binary, mode):
         command = [str(binary), "serve", "--hostname", "127.0.0.1", "--port", "0"]
         if mode == "stdio":
             command.append("--stdio")
+        child_script = Path(__file__).with_name("child_reply_probe.py").resolve()
+        child_extra = []
+        process_options = {}
+        if shell_fixture is not None:
+            child_script, child_extra, process_options = shell_fixture.configure(root, environment, binary)
         process = subprocess.Popen(command, cwd=project, env=environment, stdin=subprocess.PIPE,
-                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                                   **process_options)
         messages = queue.Queue()
         reader = threading.Thread(target=stream_lines, args=(process.stdout, messages), daemon=True)
         reader.start()
@@ -141,11 +147,10 @@ def probe(binary, mode):
             # Это настоящий child из Session.shell, с фактическим Shell.environment
             # данной версии. Пароль не передаётся в argv или input child.
             output = project / "child-result.json"
-            child_script = Path(__file__).with_name("child_reply_probe.py").resolve()
             child_command = shlex.join([
                 sys.executable, str(child_script), "--url", base, "--server-pid", str(process.pid),
                 "--session", target, "--request", start["id"], "--output", str(output),
-            ])
+            ] + child_extra)
             status, _ = http(base, password, "POST", f"/api/session/{other}/shell", {"command": child_command})
             require(status == 204, "SHELL_CHILD_ADMISSION_FAILED")
             deadline = time.monotonic() + 15
@@ -153,6 +158,8 @@ def probe(binary, mode):
                 time.sleep(0.05)
             require(output.exists(), "SHELL_CHILD_RESULT_MISSING")
             child = json.loads(output.read_text(encoding="utf-8"))
+            if shell_fixture is not None:
+                shell_fixture.verify(child)
             remaining = pending_ids(base, password, target)
             if child["reply_accepted"]:
                 require(start["id"] not in remaining, "CHILD_REPLY_DID_NOT_CONSUME")
@@ -195,6 +202,8 @@ def probe(binary, mode):
                 process.stdin.close()
             if process.stdout:
                 process.stdout.close()
+            if shell_fixture is not None:
+                shell_fixture.close()
 
 
 def main():
