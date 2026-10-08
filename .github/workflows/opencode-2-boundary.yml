@@ -54,6 +54,10 @@ jobs:
         run: |
           set -euo pipefail
           bun run script/build.ts --single --skip-install --skip-web-ui
+      - name: Test external approval owner state and atomic once
+        shell: bash
+        run: |
+          python -m unittest discover -s policy/tests/opencode_2_0_23 -p 'test_approval_owner.py' -v
       - name: Observe and check actual CLI version output
         working-directory: upstream/packages/cli
         shell: bash
@@ -105,6 +109,14 @@ jobs:
             --binary "$GITHUB_WORKSPACE/upstream/packages/cli/dist/cli-linux-x64/bin/opencode" \
             --source "$GITHUB_WORKSPACE/upstream" \
             --output "$RUNNER_TEMP/opencode-2-evidence/isolated-shell.json"
+      - name: Probe separate approval owner against real OpenCode and plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -- env -i PATH=/usr/bin:/bin /usr/bin/python3 \
+            "$GITHUB_WORKSPACE/policy/tests/opencode_2_0_23/run_protected_owner_probe.py" \
+            --binary "$GITHUB_WORKSPACE/upstream/packages/cli/dist/cli-linux-x64/bin/opencode" \
+            --output "$RUNNER_TEMP/opencode-2-evidence/protected-owner.json"
       - name: Preserve sanitized observations
         if: always()
         uses: actions/upload-artifact@v4
