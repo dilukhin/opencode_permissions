@@ -7,8 +7,10 @@ import json
 import os
 from pathlib import Path
 import pwd
+import pty
 import queue
 import secrets
+import select
 import shutil
 import shlex
 import subprocess
@@ -139,8 +141,8 @@ class ProtectedOwner(IsolatedShell):
                 "OWNER_REVIEW_NOT_IMMUTABLE")
         tampered = self.owner_call({"action": "decide", **bound, "operation_sha256": "0" * 64, "decision": "approve"})
         require(tampered == {"ok": False, "code": "OPERATION_CHANGED"}, "OWNER_ACCEPTED_CHANGED_OPERATION")
-        approved = self.owner_call({"action": "decide", **bound, "decision": "approve"})
-        require(approved["ok"] and approved["state"] == "approved", "SCRIPTED_OWNER_APPROVAL_FAILED")
+        console = self.owner_console(bound)
+        require(console["owner_console_completed"] and console["state"] == "approved", "SCRIPTED_OWNER_APPROVAL_FAILED")
         consumed = trigger("probe.owner.consume", bound)["consume"]
         require(consumed["ok"] and consumed["state"] == "consumed", "APPROVED_REQUEST_NOT_CONSUMED")
         replay = trigger("probe.owner.consume", bound)["consume"]
@@ -151,8 +153,53 @@ class ProtectedOwner(IsolatedShell):
             "owner_signal_allowed": False, "native_once_can_bypass_owner": False,
             "immutable_owner_review": True, "changed_operation_rejected": True,
             "scripted_owner_once_consumed": True, "replay_rejected": True,
+            "real_owner_console_pty_test": True, "console_input_source": "scripted root fixture, not human",
             "actual_human_ui_proof": False, "real_execution": False}
         return native
+
+    def owner_console(self, bound):
+        command = ["/usr/bin/python3", str(self.owner_script), "review", "--socket", str(self.decision_socket),
+                   "--request-id", bound["request_id"], "--operation-sha256", bound["operation_sha256"]]
+        options = {"cwd": self.private, "env": {"PATH": "/usr/bin:/bin", "HOME": str(self.private),
+                                                "PYTHONIOENCODING": "utf-8"},
+                   "user": self.owner.pw_uid, "group": self.owner.pw_gid, "extra_groups": []}
+        refused = subprocess.run(command, input="ДА\n", capture_output=True, text=True, timeout=10, **options)
+        require(refused.returncode != 0 and "OWNER_TERMINAL_REQUIRED" in refused.stderr, "PIPE_INPUT_ACCEPTED_AS_CONSOLE")
+        master, slave = pty.openpty()
+        process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, **options)
+        os.close(slave)
+        transcript = b""
+        answered = False
+        deadline = time.monotonic() + 10
+        try:
+            while time.monotonic() < deadline:
+                ready, _, _ = select.select([master], [], [], 0.2)
+                if ready:
+                    try:
+                        chunk = os.read(master, 65536)
+                    except OSError:
+                        break
+                    if not chunk:
+                        break
+                    transcript += chunk
+                    if not answered and "Введите ДА".encode() in transcript:
+                        expected = json.dumps(self.operation, ensure_ascii=True, indent=2, sort_keys=True).replace("\n", "\r\n").encode()
+                        require(expected in transcript and bound["operation_sha256"].encode() in transcript,
+                                "CONSOLE_DID_NOT_DISPLAY_OWNER_SNAPSHOT")
+                        os.write(master, "ДА\n".encode())
+                        answered = True
+                if process.poll() is not None and not ready:
+                    break
+            require(answered and process.wait(timeout=3) == 0, "OWNER_CONSOLE_FAILED")
+            for line in transcript.decode("utf-8").splitlines():
+                if line.startswith('{"owner_console_completed"'):
+                    return json.loads(line)
+            raise RuntimeError("OWNER_CONSOLE_RESULT_MISSING")
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+            os.close(master)
 
     def close(self):
         if self.owner_process is not None:

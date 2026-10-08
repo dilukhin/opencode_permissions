@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import selectors
 import socket
+import stat
 import struct
 import sys
 import threading
@@ -196,6 +197,31 @@ def call(address, request):
             return strict_json(stream.readline(65537))
 
 
+def review(args):
+    if sys.platform != "linux" or not sys.stdin.isatty() or not sys.stdout.isatty():
+        raise Refusal("OWNER_TERMINAL_REQUIRED")
+    info, parent = args.socket.lstat(), args.socket.parent.lstat()
+    if (not stat.S_ISSOCK(info.st_mode) or stat.S_ISLNK(parent.st_mode)
+            or info.st_uid != os.getuid() or parent.st_uid != os.getuid()
+            or info.st_mode & 0o077 or parent.st_mode & 0o077):
+        raise Refusal("PRIVATE_OWNER_SOCKET_REQUIRED")
+    bound = {"request_id": args.request_id, "operation_sha256": args.operation_sha256}
+    inspected = call(args.socket, {"action": "inspect", **bound})
+    if not inspected.get("ok") or inspected.get("state") != "pending":
+        raise Refusal("OWNER_REQUEST_NOT_PENDING")
+    # Данные выводятся экранированным JSON: ANSI/control/bidi не управляют консолью.
+    print("Испытательный запрос: эта консоль не запускает SSH или sudo-job.")
+    print("Сохранённая владельцем операция (Unicode и управляющие символы экранированы):")
+    print(json.dumps(inspected["operation"], ensure_ascii=True, indent=2, sort_keys=True))
+    print("SHA-256 операции: " + inspected["operation_sha256"])
+    choice = input("Разрешить эту операцию один раз? Введите ДА, иначе запрос будет отклонён: ")
+    decision = "approve" if choice.strip() == "ДА" else "reject"
+    result = call(args.socket, {"action": "decide", **bound, "decision": decision})
+    if not result.get("ok"):
+        raise Refusal("OWNER_DECISION_NOT_RECORDED")
+    print(json.dumps({"owner_console_completed": True, "state": result["state"]}), flush=True)
+
+
 def serve(args):
     if sys.platform != "linux" or not hasattr(socket, "SO_PEERCRED"):
         raise Refusal("LINUX_PEER_CREDENTIALS_REQUIRED")
@@ -250,9 +276,15 @@ def main():
     server.add_argument("--host-id", required=True)
     client = sub.add_parser("call")
     client.add_argument("--socket", type=Path, required=True)
+    console = sub.add_parser("review", help="показать сохранённый запрос и спросить решение в консоли владельца")
+    console.add_argument("--socket", type=Path, required=True)
+    console.add_argument("--request-id", required=True)
+    console.add_argument("--operation-sha256", required=True)
     args = parser.parse_args()
     if args.mode == "serve":
         serve(args)
+    elif args.mode == "review":
+        review(args)
     else:
         print(json.dumps(call(args.socket, strict_json(sys.stdin.buffer.readline(65537)))))
 
