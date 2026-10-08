@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           dist/cli-linux-x64/bin/opencode --version
-          test "$(dist/cli-linux-x64/bin/opencode --version)" = 2.0.23
+          test "$(dist/cli-linux-x64/bin/opencode --version)" = 'opencode v2.0.23'
       - name: Test real native waiting and cancellation implementation
         working-directory: upstream/packages/core
         shell: bash

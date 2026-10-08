@@ -205,7 +205,7 @@ def main():
     args = parser.parse_args()
     binary = args.binary.resolve()
     version = subprocess.run([str(binary), "--version"], capture_output=True, text=True, timeout=15)
-    require(version.returncode == 0 and version.stdout.strip() == VERSION, "BINARY_VERSION_MISMATCH")
+    require(version.returncode == 0 and version.stdout.strip() == f"opencode v{VERSION}", "BINARY_VERSION_MISMATCH")
     package = json.loads((args.source / "package.json").read_text())
     require(package["version"] == VERSION, "SOURCE_VERSION_MISMATCH")
     result = {
