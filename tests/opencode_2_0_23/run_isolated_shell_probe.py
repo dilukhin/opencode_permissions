@@ -43,6 +43,7 @@ class IsolatedShell:
             directory = root / name
             directory.mkdir(mode=0o700, exist_ok=True)
             os.chown(directory, self.host.pw_uid, self.host.pw_gid)
+            directory.chmod(0o700)
         project = root / "project"
         os.chown(project, self.host.pw_uid, self.tools.pw_gid)
         project.chmod(0o770)
@@ -172,6 +173,7 @@ def self_check():
                                     capture_output=True, text=True, timeout=30, **process_options)
             require(result.returncode == 0, "SELF_CHECK_LAUNCH_FAILED")
             report = json.loads(result.stdout)
+            print(json.dumps({"linux_fixture_observation": report}))
             require(report == {"uid": fixture.tools.pw_uid, "groups": [], "host_directory_access": False,
                                "launcher_access": False, "credential_present": False}, "SELF_CHECK_FAILED")
             print(json.dumps({"linux_fixture_self_check": True, "opencode_runtime_proof": False, **report}))
