@@ -208,12 +208,21 @@ def evaluate(events, messages, session_id, groups, outcome, complete):
         raise AssertionError("unknown fixture outcome")
     permission = [e for e in relevant if e["type"] == "permission.asked"]
     bash = parts(messages, "bash")
+    if outcome in {"deny", "ask"} and len(bash) == 1:
+        if (bash[0].get("callID") != "call_q1_shell" or
+                bash[0].get("state", {}).get("input", {}).get("command") != f"echo {SENTINEL}"):
+            raise AssertionError("technical operation binding changed")
     if outcome == "deny":
         if len(bash) != 1 or bash[0]["state"].get("status") != "error" or permission:
             raise AssertionError("question answer weakened hard DENY")
     elif outcome == "ask":
         if len(bash) != 1 or bash[0]["state"].get("status") != "error" or len(permission) != 1:
             raise AssertionError("question answer unexpectedly resolved technical ASK")
+        denied = [e["properties"] for e in relevant if e["type"] == "permission.replied"]
+        if len(denied) != 1 or denied[0].get("requestID") != permission[0]["properties"].get("id"):
+            raise Inconclusive("technical rejection correlation lost")
+        if denied[0].get("reply") != "reject":
+            raise AssertionError("technical ASK granted unexpectedly")
     elif bash or permission:
         raise AssertionError("unexpected permission or shell operation")
     if any(p.get("state", {}).get("status") == "completed" for p in bash):
@@ -342,6 +351,14 @@ def run_scenario(binary, name):
                     index = len(answered)
                     if index >= len(groups):
                         raise AssertionError("extra pending question")
+                    # The session snapshot above can precede the next question event.
+                    # Refresh read-only evidence; never reply using that stale snapshot.
+                    messages = http("GET", base, f"/session/{session_id}/message", str(project))
+                    bound = [p for p in parts(messages, "question")
+                             if p.get("callID") == req.get("tool", {}).get("callID")
+                             and p.get("messageID") == req.get("tool", {}).get("messageID")]
+                    if not bound:
+                        continue
                     guard_request(req, session_id, f"call_q1_{index}", groups[index], messages)
                     expected = ANSWERS if len(groups[index]) == 3 else [ANSWERS[index]]
                     if name == "controller_guards":
@@ -382,6 +399,8 @@ def run_scenario(binary, name):
                             continue
                         if req.get("permission") != "bash" or req.get("tool", {}).get("callID") != "call_q1_shell":
                             raise Inconclusive("technical permission correlation lost")
+                        if req.get("metadata", {}).get("command") != f"echo {SENTINEL}":
+                            raise Inconclusive("technical permission command changed")
                         if any(p.get("state", {}).get("status") == "completed" for p in parts(messages, "bash")):
                             raise AssertionError("Q reply automatically executed pending ASK")
                         http("POST", base, f"/permission/{req['id']}/reply", str(project), {"reply": "reject"})
@@ -406,6 +425,15 @@ def run_scenario(binary, name):
             retained = any(q.get("sessionID") == session_id for q in remaining)
             if retained and name != "native_abort":
                 raise AssertionError("terminal session retained pending question")
+            late_reply_blocked = None
+            if name == "native_abort" and retained:
+                stale = next(q for q in remaining if q.get("sessionID") == session_id)
+                try:
+                    guard_request(stale, session_id, "call_q1_0", groups[0], messages)
+                except Inconclusive:
+                    late_reply_blocked = True
+                else:
+                    raise AssertionError("controller accepted reply to aborted native tool")
             ev = observer.snapshot()
             metrics = evaluate(ev, messages, session_id, groups, outcome, not observer.failed)
             # Mutation controls: dropping observations cannot pass; duplicating request must fail.
@@ -426,6 +454,7 @@ def run_scenario(binary, name):
                     raise AssertionError("injected duplicate produced false success")
             return {"scenario": name, "status": "OBSERVED_GAP" if name == "native_abort" and retained else "PASS",
                     "metrics": metrics, "pending_question_after_abort": retained if name == "native_abort" else False,
+                    "late_reply_controller_blocked": late_reply_blocked,
                     "controller_guard_rejections": tested_guards, "actual_human_ui_proof": False}
         finally:
             observer.stopping = True
@@ -464,6 +493,8 @@ def main():
         print(json.dumps(result), flush=True)
     ok = all(r["status"] == "PASS" or (r["scenario"] == "native_abort" and r["status"] == "OBSERVED_GAP") for r in results)
     known_gap = any(r["status"] == "OBSERVED_GAP" for r in results)
+    native_cleanup = any(r["scenario"] == "native_abort" and r["status"] == "PASS"
+                         and r.get("pending_question_after_abort") is False for r in results)
     comparison = None
     if ok:
         batch, sequential = results[:2]
@@ -475,7 +506,7 @@ def main():
                       "real_user_interruptions_measured": False}
     report = {"schema": "opencode-question-q1/v1", "opencode_version": version,
               "platform": os.name, "status": "PASS_WITH_KNOWN_GAP" if ok and known_gap else "PASS" if ok else "FAIL",
-              "scope": "synthetic_question_only", "native_abort_cleanup_proven": not known_gap,
+              "scope": "synthetic_question_only", "native_abort_cleanup_proven": native_cleanup,
               "compatibility_deployable": False, "actual_human_ui_proof": False,
               "comparison": comparison, "results": results}
     Path(args.output).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
