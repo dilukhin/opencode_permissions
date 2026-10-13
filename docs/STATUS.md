@@ -14,7 +14,8 @@
 | MP-3 применение и рабочие измерения | Не подтверждены; не выполнялись в этой итерации | После готовности интерфейса и согласования конкретного применения |
 | Structured invocation | Проектирование [#34](https://github.com/dilukhin/opencode_permissions/issues/34) | Согласование с agent-safe#25 и ssh_relay#47, без расширения ALLOW |
 | Workspace trust / P1 | Consumer и producer приняты; authorization integration ожидается | [agent-toolchain#45](https://github.com/dilukhin/agent-toolchain/issues/45) закрыта через PR #66; первый trust-conditioned ALLOW требует MP-3 baseline и отдельной integration acceptance |
-| Пакетирование пользовательских вопросов / ограниченных разрешений | Q0/A0 DESIGN IN PROGRESS, runtime NOT IMPLEMENTED | [#48](https://github.com/dilukhin/opencode_permissions/issues/48), [проектное решение](batch_interaction_design_ru.md); новый ALLOW запрещён до соответствующих gates |
+| Пакетирование пользовательских вопросов / ограниченных разрешений | Q0/A0: документы подготовлены к рассмотрению; пакетный runtime NOT IMPLEMENTED | [#48](https://github.com/dilukhin/opencode_permissions/issues/48), [проектное решение](batch_interaction_design_ru.md), [контракт владельца](batch_approval_owner_contract_ru.md); приёмка A0/A1 не объявлена, новые ALLOW не выдаются |
+| Защищённый источник согласия для пакета | Кандидат на переиспользование: одиночный Linux-прототип #46/PR #47, вне main | Защита от проверенного самоодобрения и in-memory однократность; ввод человеком, фактическая подготовка вызова, прямые обходы и устойчивое исполнение требуют отдельной приёмки |
 | Auditor | DEFERRED BY POLICY | После реальных residual-ASK metrics |
 | Transitional YC | Отдельные policy/classifier/artifact в main | Не расширяет P0; установка и состояние машин не проверялись здесь |
 
