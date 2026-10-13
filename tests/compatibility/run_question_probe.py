@@ -357,7 +357,7 @@ def run_scenario(binary, name):
                     bound = [p for p in parts(messages, "question")
                              if p.get("callID") == req.get("tool", {}).get("callID")
                              and p.get("messageID") == req.get("tool", {}).get("messageID")]
-                    if not bound:
+                    if not bound or (len(bound) == 1 and bound[0].get("state", {}).get("status") == "pending"):
                         continue
                     guard_request(req, session_id, f"call_q1_{index}", groups[index], messages)
                     expected = ANSWERS if len(groups[index]) == 3 else [ANSWERS[index]]
