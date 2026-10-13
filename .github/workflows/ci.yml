@@ -14,6 +14,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  opencode-question-runtime:
+    name: OpenCode 1.19.0 Q1 questions / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary: opencode
+          - os: windows-latest
+            binary: opencode.exe
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Download hash-pinned official Q1 test binary
+        run: python tests/compatibility/download_question_binary.py --directory .q1-bin
+      - name: Observe native questions and compare request interruptions
+        run: python tests/compatibility/run_question_probe.py --opencode .q1-bin/${{ matrix.binary }} --output q1-report.json
+      - name: Preserve sanitized Q1 report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: q1-questions-${{ matrix.os }}
+          path: q1-report.json
+          if-no-files-found: error
+
   tests:
     name: ${{ matrix.os }} / Python ${{ matrix.python }}
     runs-on: ${{ matrix.os }}
