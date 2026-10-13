@@ -10,6 +10,13 @@ spec.loader.exec_module(q1)
 
 
 class QuestionProbeTests(unittest.TestCase):
+    def test_sse_optional_space_and_line_ending(self):
+        for line in [b'data:{"type":"server.connected"}\n', b'data: {"type":"server.connected"}\r\n']:
+            self.assertEqual(q1.event_line(line)["type"], "server.connected")
+        self.assertIsNone(q1.event_line(b": heartbeat\n"))
+        with self.assertRaises(q1.Inconclusive):
+            q1.event_line(b'data:{}\n')
+
     def fixture(self):
         req = {"id": "que_fixture", "sessionID": "ses_fixture", "questions": q1.QUESTIONS,
                "tool": {"callID": "call_q1_0", "messageID": "msg_fixture"}}

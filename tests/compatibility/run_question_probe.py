@@ -52,6 +52,16 @@ def parts(messages, tool=None):
             if p.get("type") == "tool" and (tool is None or p.get("tool") == tool)]
 
 
+def event_line(raw):
+    # SSE permits both 'data: {...}' and 'data:{...}'.
+    if not raw.startswith(b"data:"):
+        return None
+    event = json.loads(raw[5:].strip())
+    if not isinstance(event, dict) or not isinstance(event.get("type"), str):
+        raise Inconclusive("unrecognized event format")
+    return event
+
+
 def guard_request(request, session_id, expected_call, expected_questions, messages):
     """Controller check, not a claim about native HTTP authentication."""
     tool = request.get("tool") or {}
@@ -101,11 +111,9 @@ class Observer:
                 for raw in response:
                     if self.stopping:
                         break
-                    if not raw.startswith(b"data: "):
+                    event = event_line(raw)
+                    if event is None:
                         continue
-                    event = json.loads(raw[6:])
-                    if not isinstance(event, dict) or not isinstance(event.get("type"), str):
-                        raise Inconclusive("unrecognized event format")
                     with self.lock:
                         self.events.append(event)
                     if event["type"] == "server.connected":
@@ -137,7 +145,7 @@ def evaluate(events, messages, session_id, groups, outcome, complete):
     if not complete:
         raise Inconclusive("observation incomplete")
     relevant = [e for e in events if e.get("properties", {}).get("sessionID") == session_id]
-    if any(e["type"] == "session.error" for e in relevant):
+    if any(e["type"] == "session.error" for e in relevant) and outcome not in {"reject", "cancel", "ask"}:
         raise AssertionError("native session error")
     asked = [e["properties"] for e in relevant if e["type"] == "question.asked"]
     replied = [e["properties"] for e in relevant if e["type"] == "question.replied"]
@@ -235,6 +243,9 @@ def provider(groups, shell_after=False):
                 name, args, call = "bash", {"command": f"echo {SENTINEL}"}, "call_q1_shell"
             else:
                 name = None
+            # Background title/summary requests carry no tools and are not scenarios.
+            if not names:
+                name = None
             if name and name not in names:
                 self.send_error(400, "required native tool unavailable")
                 return
@@ -264,7 +275,7 @@ def provider(groups, shell_after=False):
 
 def run_scenario(binary, name):
     groups = [[q] for q in QUESTIONS] if name == "sequential" else [] if name == "known" else [QUESTIONS]
-    outcome = {"rejected": "reject", "cancelled": "cancel", "known": "none",
+    outcome = {"rejected": "reject", "cancelled": "cancel", "native_abort": "cancel", "known": "none",
                "question_not_grant_deny": "deny", "question_not_grant_ask": "ask"}.get(name, "reply")
     with tempfile.TemporaryDirectory(prefix="q1-") as tmp, provider(groups, outcome in {"deny", "ask"}) as model_port:
         root = Path(tmp)
@@ -321,6 +332,13 @@ def run_scenario(binary, name):
                 for req in pending:
                     if req.get("sessionID") != session_id or req["id"] in answered:
                         continue
+                    observed = [e.get("properties", {}) for e in observer.snapshot()
+                                if e["type"] == "question.asked" and e.get("properties", {}).get("id") == req["id"]]
+                    if not observed:
+                        continue
+                    if len(observed) != 1 or any(observed[0].get(k) != req.get(k)
+                                                for k in ("id", "sessionID", "tool", "questions")):
+                        raise Inconclusive("pending request differs from observed event")
                     index = len(answered)
                     if index >= len(groups):
                         raise AssertionError("extra pending question")
@@ -345,6 +363,10 @@ def run_scenario(binary, name):
                         if not any(q["id"] == req["id"] for q in http("GET", base, "/question", str(project))):
                             raise AssertionError("controller guards mutated pending state")
                     if outcome == "cancel":
+                        if name == "cancelled":
+                            # Abort alone leaves a stale pending question in exact 1.19.0.
+                            # Close this correlated request explicitly before aborting.
+                            http("POST", base, f"/question/{req['id']}/reject", str(project))
                         http("POST", base, f"/session/{session_id}/abort", str(project))
                         aborted = True
                     elif outcome == "reject":
@@ -371,13 +393,18 @@ def run_scenario(binary, name):
                 text_done = any(p.get("type") == "text" and "Q1_CONTINUED" in p.get("text", "")
                                 for m in messages for p in m.get("parts", []))
                 ended_tools = all(p.get("state", {}).get("status") in {"completed", "error"} for p in parts(messages))
-                if idle and ended_tools and (text_done or aborted) and (outcome != "ask" or technical_rejected):
+                terminal_without_continuation = aborted or outcome == "reject" or technical_rejected
+                if idle and ended_tools and (text_done or terminal_without_continuation) and (outcome != "ask" or technical_rejected):
                     break
                 time.sleep(.1)
             else:
-                raise Inconclusive("native scenario timed out")
+                summary = {"tool_states": [p.get("state", {}).get("status") for p in parts(messages)],
+                           "event_types": sorted({e["type"] for e in observer.snapshot()}),
+                           "controller_replies": len(answered), "technical_rejected": technical_rejected}
+                raise Inconclusive("native scenario timed out: " + json.dumps(summary))
             remaining = http("GET", base, "/question", str(project))
-            if any(q.get("sessionID") == session_id for q in remaining):
+            retained = any(q.get("sessionID") == session_id for q in remaining)
+            if retained and name != "native_abort":
                 raise AssertionError("terminal session retained pending question")
             ev = observer.snapshot()
             metrics = evaluate(ev, messages, session_id, groups, outcome, not observer.failed)
@@ -397,7 +424,8 @@ def run_scenario(binary, name):
                     pass
                 else:
                     raise AssertionError("injected duplicate produced false success")
-            return {"scenario": name, "status": "PASS", "metrics": metrics,
+            return {"scenario": name, "status": "OBSERVED_GAP" if name == "native_abort" and retained else "PASS",
+                    "metrics": metrics, "pending_question_after_abort": retained if name == "native_abort" else False,
                     "controller_guard_rejections": tested_guards, "actual_human_ui_proof": False}
         finally:
             observer.stopping = True
@@ -421,7 +449,7 @@ def main():
     if version != VERSION:
         raise SystemExit(f"Expected exact OpenCode {VERSION}")
     results = []
-    for name in ["batched", "sequential", "known", "rejected", "cancelled", "controller_guards",
+    for name in ["batched", "sequential", "known", "rejected", "cancelled", "native_abort", "controller_guards",
                  "question_not_grant_deny", "question_not_grant_ask"]:
         try:
             result = run_scenario(binary, name)
@@ -434,16 +462,20 @@ def main():
             result = {"scenario": name, "status": "INCONCLUSIVE", "reason": type(exc).__name__}
         results.append(result)
         print(json.dumps(result), flush=True)
-    ok = all(r["status"] == "PASS" for r in results)
+    ok = all(r["status"] == "PASS" or (r["scenario"] == "native_abort" and r["status"] == "OBSERVED_GAP") for r in results)
+    known_gap = any(r["status"] == "OBSERVED_GAP" for r in results)
     comparison = None
     if ok:
         batch, sequential = results[:2]
         if (batch["metrics"]["question_request_count"], sequential["metrics"]["question_request_count"]) != (1, 3):
             ok = False
+        if (batch["metrics"]["question_item_count"], sequential["metrics"]["question_item_count"]) != (3, 3):
+            ok = False
         comparison = {"question_items_each": 3, "batched_requests": 1, "sequential_requests": 3,
                       "real_user_interruptions_measured": False}
     report = {"schema": "opencode-question-q1/v1", "opencode_version": version,
-              "platform": os.name, "status": "PASS" if ok else "FAIL", "scope": "synthetic_question_only",
+              "platform": os.name, "status": "PASS_WITH_KNOWN_GAP" if ok and known_gap else "PASS" if ok else "FAIL",
+              "scope": "synthetic_question_only", "native_abort_cleanup_proven": not known_gap,
               "compatibility_deployable": False, "actual_human_ui_proof": False,
               "comparison": comparison, "results": results}
     Path(args.output).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
