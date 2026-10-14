@@ -1,0 +1,50 @@
+name: OpenCode 2.0.23 native question and form proof
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/opencode-2-question.yml'
+      - 'tests/opencode_2_0_23/question_form_boundary.test.ts'
+      - 'docs/aragorn_q2_readiness_ru.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opencode-2-question-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  question:
+    name: Exact 2.0.23 native services, no external model
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: policy
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: anomalyco/opencode
+          ref: 0fd7e2829449b052abf0078666669302923d77af
+          path: upstream
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Verify immutable upstream and frozen dependency lock
+        working-directory: upstream
+        run: |
+          test "$(git rev-parse HEAD)" = 0fd7e2829449b052abf0078666669302923d77af
+          test "$(bun --version)" = 1.4.2
+          bun install --frozen-lockfile
+      - name: Test real Question, Form and Permission services
+        working-directory: upstream/packages/core
+        run: |
+          cp "$GITHUB_WORKSPACE/policy/tests/opencode_2_0_23/question_form_boundary.test.ts" test/batch-question-boundary.test.ts
+          bun run script/test.ts test/batch-question-boundary.test.ts
+      - name: Document proof scope
+        run: |
+          echo 'Exact upstream 2.0.23 native services tested. No installed CLI, UI, model, SSH or root execution proof; compatibility registry stays closed.' >> "$GITHUB_STEP_SUMMARY"
