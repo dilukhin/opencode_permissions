@@ -148,7 +148,10 @@ it.effect("question ASK stays separate from the eventual answer form", () => Eff
   expect(request.action).toBe("question")
   expect(yield* forms.list()).toEqual([])
   yield* permission.reply({ requestID: request.id, reply: "reject" })
-  expect((yield* Fiber.join(fiber)).status).toBe("error")
+  // V2 deliberately tunnels a user's dismissal as a typed failing fiber,
+  // rather than giving the model an ordinary error tool result.
+  expect((yield* Fiber.await(fiber))._tag).toBe("Failure")
+  expect(yield* permission.list()).toEqual([])
   expect(yield* forms.list()).toEqual([])
 }))
 
