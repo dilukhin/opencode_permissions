@@ -4,6 +4,7 @@
   "provider": "yandex-cloud",
   "allow_read": [
     {"service": "compute", "resource": "instance", "action": "list", "argv": ["yc", "compute", "instance", "list"]},
+    {"service": "compute", "resource": "instance", "action": "list", "argv": ["yc", "compute", "instance", "list", "--format", "json"]},
     {"service": "compute", "resource": "instance", "action": "get", "argv": ["yc", "compute", "instance", "get", "--id", "<resource_id>"]},
     {"service": "compute", "resource": "disk", "action": "list", "argv": ["yc", "compute", "disk", "list"]}
   ],
