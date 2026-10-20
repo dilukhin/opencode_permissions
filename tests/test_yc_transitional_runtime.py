@@ -54,6 +54,7 @@ class YcTransitionalRuntimeTests(unittest.TestCase):
     def test_exact_reads_execute_via_pinned_path(self):
         for command in (
             "yc compute instance list",
+            "yc compute instance list --format json",
             "yc compute instance get --id epd42hrnss08t2440g90",
             "yc compute disk list",
         ):
@@ -78,6 +79,8 @@ class YcTransitionalRuntimeTests(unittest.TestCase):
 
     def test_wrong_target_and_unknown_never_reach_executor(self):
         for command in (
+            "yc compute instance list --format yaml",
+            "yc compute instance list --format json --folder-id synthetic",
             "yc compute instance start --id other",
             "yc compute instance start --name dilyavm",
             "yc compute instance start --id epd42hrnss08t2440g90 --quiet",
@@ -92,6 +95,7 @@ class YcTransitionalRuntimeTests(unittest.TestCase):
 
     def test_hard_deny_never_reaches_executor(self):
         for command in (
+            "yc compute instance list --format json --token synthetic",
             "yc --guard approve request",
             "yc --guard uninstall",
             "yc config list",

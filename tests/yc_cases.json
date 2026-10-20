@@ -3,6 +3,10 @@
   "execution_policy": "parser_only",
   "cases": [
     {"id": "instance-list", "command": "yc compute instance list", "expected_decision": "ALLOW", "safety": "safe"},
+    {"id": "instance-list-json", "command": "yc compute instance list --format json", "expected_decision": "ALLOW", "safety": "safe"},
+    {"id": "instance-list-other-format", "command": "yc compute instance list --format yaml", "expected_decision": "ASK_USER", "safety": "unknown"},
+    {"id": "instance-list-json-extra", "command": "yc compute instance list --format json --folder-id synthetic", "expected_decision": "ASK_USER", "safety": "unknown"},
+    {"id": "instance-list-json-secret", "command": "yc compute instance list --format json --token synthetic", "expected_decision": "DENY", "safety": "secret"},
     {"id": "instance-get", "command": "yc compute instance get --id epd42hrnss08t2440g90", "expected_decision": "ALLOW", "safety": "safe"},
     {"id": "disk-list", "command": "yc compute disk list", "expected_decision": "ALLOW", "safety": "safe"},
     {"id": "start-exact", "command": "yc compute instance start --id epd42hrnss08t2440g90", "expected_decision": "ALLOW", "safety": "safe"},
