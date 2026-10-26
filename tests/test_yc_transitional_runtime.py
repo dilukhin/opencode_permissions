@@ -54,8 +54,12 @@ class YcTransitionalRuntimeTests(unittest.TestCase):
     def test_exact_reads_execute_via_pinned_path(self):
         for command in (
             "yc compute instance list",
+            "yc compute instance list --format json",
             "yc compute instance get --id epd42hrnss08t2440g90",
             "yc compute disk list",
+            "yc vpc security-group list",
+            "yc vpc security-group get --id synthetic-sg",
+            "yc vpc subnet get --id synthetic-subnet",
         ):
             with self.subTest(command=command):
                 result, executor = self.dispatch(command)
@@ -78,6 +82,12 @@ class YcTransitionalRuntimeTests(unittest.TestCase):
 
     def test_wrong_target_and_unknown_never_reach_executor(self):
         for command in (
+            "yc compute instance list --format yaml",
+            "yc compute instance list --format json --folder-id synthetic",
+            "yc vpc security-group get --id synthetic-sg --format json",
+            "yc vpc security-group list --folder-id synthetic",
+            "yc vpc subnet get --id synthetic-subnet --quiet",
+            "yc vpc security-group update --id synthetic-sg",
             "yc compute instance start --id other",
             "yc compute instance start --name dilyavm",
             "yc compute instance start --id epd42hrnss08t2440g90 --quiet",
@@ -90,8 +100,34 @@ class YcTransitionalRuntimeTests(unittest.TestCase):
                 self.assertFalse(result["execute"])
                 self.assertEqual(executor.calls, [])
 
+    def test_invalid_get_ids_never_reach_executor(self):
+        invalid_tails = (
+            ["--id"],
+            ["--id", ""],
+            ["--id", " "],
+            ["--id", "abc def"],
+            ["--id", "abc\ndef"],
+            ["--id", "abc\x00def"],
+            ["--id", "abc\x80def"],
+            ["--id=synthetic"],
+            ["--id", "synthetic", "--id", "other"],
+            ["--id", "synthetic", "--quiet"],
+        )
+        for service, resource in (("compute", "instance"), ("vpc", "security-group"), ("vpc", "subnet")):
+            for tail in invalid_tails:
+                with self.subTest(service=service, resource=resource, tail=tail):
+                    direct = fact("yc compute instance get --id synthetic")
+                    direct["argv"] = ["yc", service, resource, "get", *tail]
+                    executor = RecordingExecutor()
+                    result = runtime.dispatch(direct, trusted_execution_target=TRUSTED, executor=executor)
+                    self.assertEqual(result["decision"], "ASK_USER")
+                    self.assertFalse(result["execute"])
+                    self.assertEqual(executor.calls, [])
+
     def test_hard_deny_never_reaches_executor(self):
         for command in (
+            "yc compute instance list --format json --token synthetic",
+            "yc vpc security-group get --id synthetic-sg --token synthetic",
             "yc --guard approve request",
             "yc --guard uninstall",
             "yc config list",

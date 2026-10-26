@@ -66,6 +66,9 @@ class YcPolicyTests(unittest.TestCase):
             "yc compute instance list",
             "yc compute instance get --id epd42hrnss08t2440g90",
             "yc compute disk list",
+            "yc vpc security-group list",
+            "yc vpc security-group get --id synthetic-sg",
+            "yc vpc subnet get --id synthetic-subnet",
             "yc compute instance start --id epd42hrnss08t2440g90",
             "yc compute instance stop --id epd42hrnss08t2440g90",
         ):
@@ -75,6 +78,28 @@ class YcPolicyTests(unittest.TestCase):
             self.assertIn("process", result["effects"])
             self.assertIn("network", result["effects"])
             self.assertNotIn("unknown", result["effects"])
+
+    def test_placeholder_get_requires_one_nonempty_clean_id(self):
+        invalid_tails = (
+            ["--id"],
+            ["--id", ""],
+            ["--id", " "],
+            ["--id", "abc def"],
+            ["--id", "abc\u00a0def"],
+            ["--id", "abc\ndef"],
+            ["--id", "abc\x00def"],
+            ["--id", "abc\x80def"],
+            ["--id", "--quiet"],
+            ["--id=synthetic"],
+            ["--id", "synthetic", "--id", "other"],
+            ["--id", "synthetic", "--quiet"],
+        )
+        for service, resource in (("compute", "instance"), ("vpc", "security-group"), ("vpc", "subnet")):
+            for tail in invalid_tails:
+                with self.subTest(service=service, resource=resource, tail=tail):
+                    direct = fact("yc compute instance get --id synthetic")
+                    direct["argv"] = ["yc", service, resource, "get", *tail]
+                    self.assertEqual(analyzers.analyze_simple(direct)["decision"], "ASK_USER")
 
     def test_state_change_effects_are_honest(self):
         start = self.classify("yc compute instance start --id epd42hrnss08t2440g90")
