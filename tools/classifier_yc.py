@@ -6,6 +6,7 @@ import copy
 import json
 from pathlib import Path
 from typing import Any
+from unicodedata import category
 
 from classifier_core import allow_result, ask_result, deny_result, make_result
 
@@ -116,9 +117,12 @@ def _id_value(rest: list[str]) -> str | None:
     if rest.count("--id") != 1 or any(token.startswith("--id=") for token in rest):
         return None
     index = rest.index("--id")
-    if index + 1 >= len(rest) or rest[index + 1].startswith("-"):
+    if index + 1 >= len(rest):
         return None
-    return rest[index + 1]
+    value = rest[index + 1]
+    if not value or value.startswith("-") or any(char.isspace() or category(char) == "Cc" for char in value):
+        return None
+    return value
 
 
 def analyze_yc(fact: dict[str, Any], policy: dict[str, Any] | None = None) -> dict[str, Any]:

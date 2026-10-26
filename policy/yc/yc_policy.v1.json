@@ -6,7 +6,10 @@
     {"service": "compute", "resource": "instance", "action": "list", "argv": ["yc", "compute", "instance", "list"]},
     {"service": "compute", "resource": "instance", "action": "list", "argv": ["yc", "compute", "instance", "list", "--format", "json"]},
     {"service": "compute", "resource": "instance", "action": "get", "argv": ["yc", "compute", "instance", "get", "--id", "<resource_id>"]},
-    {"service": "compute", "resource": "disk", "action": "list", "argv": ["yc", "compute", "disk", "list"]}
+    {"service": "compute", "resource": "disk", "action": "list", "argv": ["yc", "compute", "disk", "list"]},
+    {"service": "vpc", "resource": "security-group", "action": "list", "argv": ["yc", "vpc", "security-group", "list"]},
+    {"service": "vpc", "resource": "security-group", "action": "get", "argv": ["yc", "vpc", "security-group", "get", "--id", "<resource_id>"]},
+    {"service": "vpc", "resource": "subnet", "action": "get", "argv": ["yc", "vpc", "subnet", "get", "--id", "<resource_id>"]}
   ],
   "allow_mutations": [
     {"service": "compute", "resource": "instance", "action": "start", "resource_id": "epd42hrnss08t2440g90", "argv": ["yc", "compute", "instance", "start", "--id", "epd42hrnss08t2440g90"]},
