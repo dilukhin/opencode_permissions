@@ -1,0 +1,37 @@
+name: YC59 Windows owner boundary
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/yc59-windows-owner-boundary.yml'
+      - 'tests/yc59_windows/**'
+      - 'tests/test_yc59_windows_fixture.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-account-boundary:
+    name: Windows named pipe distinct account boundary
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - name: Fetch unchanged pinned existing approval owner core
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pins = Get-Content tests/yc59_windows/pins.json -Raw | ConvertFrom-Json
+          if ($pins.deployment_authorized -ne $false) { throw 'Unexpected deployment claim' }
+          $core = Join-Path $env:RUNNER_TEMP 'yc59-existing-approval-owner.py'
+          $url = "https://raw.githubusercontent.com/$($pins.owner_core_repository)/$($pins.owner_core_commit)/$($pins.owner_core_path)"
+          Invoke-WebRequest -Uri $url -OutFile $core
+          if ((Get-FileHash $core -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pins.owner_core_sha256) { throw 'Existing owner core digest mismatch' }
+          "YC59_OWNER_CORE=$core" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Exercise kernel peer SID and private channel under temporary non-admin account
+        shell: pwsh
+        run: python tests/yc59_windows/run_boundary_probe.py probe --owner-core $env:YC59_OWNER_CORE
