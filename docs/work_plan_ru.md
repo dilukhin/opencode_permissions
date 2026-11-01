@@ -49,3 +49,10 @@
 Auditor, kernel broker по умолчанию, общие schemas без producer/consumer, расширение P0 на writes/remote/build/test и смешение transitional YC с P0 отложены.
 
 Ближайший результат: актуализированные документы и mapping #34. Для практического пилота следующий implementation owner — [agent-toolchain#61](https://github.com/dilukhin/agent-toolchain/issues/61).
+
+
+## Обратная связь и качество обычной работы
+
+[Методика качества](quality_feedback_loop_ru.md) связывает Windows #39, вмешательства #48 и пользовательский цикл agent-toolchain#61 с общей программой [agent_control_plane #8](https://github.com/dilukhin/agent_control_plane/issues/8). Она различает permission events, реально наблюдаемые окна, вопросы модели и safety-подтверждения; требует сопоставимости до/после, знаменателя операций и negative cases.
+
+Первый полезный результат — один измеренный цикл улучшения; ранний ручной разбор не требует готового R6 или полного ScopedKB v2. Реальный пилот начинается после соответствующего gate и exact compatibility. Публикация методики не закрывает YC G1–G4/MP-3, не выдаёт новых ALLOW и не меняет установленную конфигурацию. #34 сохраняет узкий operation/authorization scope; #53 и auditor не становятся блокирующими prerequisites первого цикла.
