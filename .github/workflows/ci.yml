@@ -21,7 +21,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Keep latest for drift detection; 24.04 retains the exact non-symlink
+        # system-executable profile required by the positive DC-4 identity tests.
+        os: [ubuntu-latest, ubuntu-24.04, windows-latest]
         python: ['3.11', '3.14']
 
     steps:
@@ -30,6 +32,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Run regression tests
+        env:
+          OPENCODE_DC4_REQUIRE_EXACT_PROFILE: ${{ matrix.os == 'ubuntu-24.04' && '1' || '0' }}
         run: python -m unittest discover -s tests -v
       - name: Check Stage 0 inventory CLI
         run: python tools/stage0_inventory.py --help
@@ -40,7 +44,9 @@ jobs:
       fail-fast: false
       matrix:
         target: [current, '1.18.32']
-    runs-on: ubuntu-latest
+    # DC-4 proves an exact non-symlink executable profile, not arbitrary changes
+    # to the system utilities selected by ubuntu-latest.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6

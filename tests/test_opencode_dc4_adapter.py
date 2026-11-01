@@ -3,7 +3,9 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
@@ -40,6 +42,16 @@ class DC4StaticParserTests(unittest.TestCase):
         self.assertIsNone(executable)
         self.assertEqual(error, "executable.not_allowlisted")
 
+    def test_symlink_executable_is_rejected_before_content_binding(self):
+        with mock.patch.object(adapter.os.path, "realpath", return_value="/synthetic/printf-target"), \
+             mock.patch.object(adapter.os, "stat", return_value=SimpleNamespace(st_mode=0o100755, st_uid=0)), \
+             mock.patch.object(adapter.os, "access", return_value=True), \
+             mock.patch.object(adapter, "_sha256_file") as digest:
+            executable, error = adapter._trusted_executable("/usr/bin/printf")
+        self.assertIsNone(executable)
+        self.assertEqual(error, "identity.executable_symlink_unsupported")
+        digest.assert_not_called()
+
 
 @unittest.skipUnless(sys.platform == "linux", "DC-4 exact runtime profile is Linux-only")
 class DC4LinuxIdentityTests(unittest.TestCase):
@@ -52,11 +64,22 @@ class DC4LinuxIdentityTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def require_non_alias_profile(self):
+        # Newer runner images may use a multi-call binary via a symlink. The
+        # runtime intentionally rejects that shape. Positive identity proof is
+        # also required on the explicitly pinned Ubuntu 24.04 CI matrix.
+        _executable, error = adapter._trusted_executable("/usr/bin/printf")
+        if error == "identity.executable_symlink_unsupported":
+            if os.environ.get("OPENCODE_DC4_REQUIRE_EXACT_PROFILE") == "1":
+                self.fail("required DC-4 non-symlink printf profile is unavailable")
+            self.skipTest("exact DC-4 non-symlink printf profile unavailable; covered on ubuntu-24.04")
+
     def test_prepare_rebinds_classifier_allow_to_exact_absolute_argv(self):
+        self.require_non_alias_profile()
         payload = adapter.prepare("/usr/bin/printf DC4_OK", self.root, self.root, "/bin/dash")
         result = payload["result"]
         guard = payload["guard"]
-        self.assertEqual(result["decision"], "ALLOW")
+        self.assertEqual(result["decision"], "ALLOW", payload)
         self.assertIsNotNone(guard)
         self.assertEqual(
             result["normalized_operation"]["execution"]["argv"],
@@ -76,9 +99,10 @@ class DC4LinuxIdentityTests(unittest.TestCase):
         self.assertIn("executable.not_allowlisted", payload["result"]["uncertainties"])
 
     def test_revalidation_binds_command_and_object_identity(self):
+        self.require_non_alias_profile()
         payload = adapter.prepare("/usr/bin/printf DC4_OK", self.root, self.root, "/bin/dash")
         guard = payload["guard"]
-        self.assertIsNotNone(guard)
+        self.assertIsNotNone(guard, payload)
         ok = adapter.revalidate(
             guard,
             "/usr/bin/printf DC4_OK",

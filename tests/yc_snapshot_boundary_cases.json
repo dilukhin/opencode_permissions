@@ -1,0 +1,873 @@
+{
+  "schema": "yc-snapshot-boundary-cases/v1",
+  "stage": "issue-59-A0",
+  "execution_policy": "parser_only_and_synthetic_executor",
+  "note": "Current transitional boundary; not acceptance of a future scoped getter or live deployment.",
+  "cases": [
+    {
+      "id": "existing-instance-json-list",
+      "argv": [
+        "yc",
+        "compute",
+        "instance",
+        "list",
+        "--format",
+        "json"
+      ],
+      "expected_decision": "ALLOW",
+      "purpose": "Существующее точное чтение не регрессирует."
+    },
+    {
+      "id": "existing-instance-get",
+      "argv": [
+        "yc",
+        "compute",
+        "instance",
+        "get",
+        "--id",
+        "synthetic-vm"
+      ],
+      "expected_decision": "ALLOW",
+      "purpose": "Существующее чтение ВМ сохраняется."
+    },
+    {
+      "id": "existing-disk-list",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "list"
+      ],
+      "expected_decision": "ALLOW",
+      "purpose": "Существующий список дисков сохраняется."
+    },
+    {
+      "id": "existing-sg-get",
+      "argv": [
+        "yc",
+        "vpc",
+        "security-group",
+        "get",
+        "--id",
+        "synthetic-sg"
+      ],
+      "expected_decision": "ALLOW",
+      "purpose": "Существующее чтение группы сохраняется."
+    },
+    {
+      "id": "disk-owner-supplied-id",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic-owner-disk"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-foreign-id",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic-foreign-disk"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-missing-id",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-empty-id",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        ""
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-space-id",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        " "
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-embedded-space-id",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic other"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-control-id",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic\u0000other"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-option-as-id",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "--quiet"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-equals-id",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id=synthetic-disk"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-duplicate-id",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic-a",
+        "--id",
+        "synthetic-b"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-name",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--name",
+        "synthetic-disk"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-positional-id",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "synthetic-disk"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-json",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic-disk",
+        "--format",
+        "json"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-projection",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic-disk",
+        "--format",
+        "json",
+        "--jq",
+        "{id,status}"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-debug",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic-disk",
+        "--debug"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-folder",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic-disk",
+        "--folder-id",
+        "synthetic-folder"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "disk-deny-profile",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic-disk",
+        "--profile",
+        "synthetic"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Секретные параметры и смена контекста не могут получить ALLOW."
+    },
+    {
+      "id": "disk-deny-inline-token",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic-disk",
+        "--token=synthetic"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Секретные параметры и смена контекста не могут получить ALLOW."
+    },
+    {
+      "id": "disk-deny-endpoint",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic-disk",
+        "--endpoint",
+        "synthetic.invalid"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Секретные параметры и смена контекста не могут получить ALLOW."
+    },
+    {
+      "id": "disk-deny-iam-key",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic-disk",
+        "--service-account-key",
+        "synthetic-key.json"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Секретные параметры и смена контекста не могут получить ALLOW."
+    },
+    {
+      "id": "disk-deny-impersonation",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "get",
+        "--id",
+        "synthetic-disk",
+        "--impersonate-service-account-id",
+        "synthetic-sa"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Секретные параметры и смена контекста не могут получить ALLOW."
+    },
+    {
+      "id": "snapshot-owner-supplied-id",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic-owner-snapshot"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-foreign-id",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic-foreign-snapshot"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-missing-id",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-empty-id",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        ""
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-space-id",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        " "
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-embedded-space-id",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic other"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-control-id",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic\u0000other"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-option-as-id",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "--quiet"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-equals-id",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id=synthetic-snapshot"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-duplicate-id",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic-a",
+        "--id",
+        "synthetic-b"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-name",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--name",
+        "synthetic-snapshot"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-positional-id",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "synthetic-snapshot"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-json",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic-snapshot",
+        "--format",
+        "json"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-projection",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic-snapshot",
+        "--format",
+        "json",
+        "--jq",
+        "{id,status}"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-debug",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic-snapshot",
+        "--debug"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-folder",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic-snapshot",
+        "--folder-id",
+        "synthetic-folder"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Форма ID и caller-controlled флаги не доказывают область доступа."
+    },
+    {
+      "id": "snapshot-deny-profile",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic-snapshot",
+        "--profile",
+        "synthetic"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Секретные параметры и смена контекста не могут получить ALLOW."
+    },
+    {
+      "id": "snapshot-deny-inline-token",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic-snapshot",
+        "--token=synthetic"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Секретные параметры и смена контекста не могут получить ALLOW."
+    },
+    {
+      "id": "snapshot-deny-endpoint",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic-snapshot",
+        "--endpoint",
+        "synthetic.invalid"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Секретные параметры и смена контекста не могут получить ALLOW."
+    },
+    {
+      "id": "snapshot-deny-iam-key",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic-snapshot",
+        "--service-account-key",
+        "synthetic-key.json"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Секретные параметры и смена контекста не могут получить ALLOW."
+    },
+    {
+      "id": "snapshot-deny-impersonation",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "get",
+        "--id",
+        "synthetic-snapshot",
+        "--impersonate-service-account-id",
+        "synthetic-sa"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Секретные параметры и смена контекста не могут получить ALLOW."
+    },
+    {
+      "id": "snapshot-list",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "list"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "snapshot-list-json",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "list",
+        "--format",
+        "json"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "disk-list-json",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "list",
+        "--format",
+        "json"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "backup-get",
+      "argv": [
+        "yc",
+        "backup",
+        "backup",
+        "get",
+        "--backup-id",
+        "synthetic-backup"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "backup-list",
+      "argv": [
+        "yc",
+        "backup",
+        "backup",
+        "list"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "backup-policy-list",
+      "argv": [
+        "yc",
+        "backup",
+        "policy",
+        "list"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "network-get",
+      "argv": [
+        "yc",
+        "vpc",
+        "network",
+        "get",
+        "--id",
+        "synthetic-network"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "route-table-get",
+      "argv": [
+        "yc",
+        "vpc",
+        "route-table",
+        "get",
+        "--id",
+        "synthetic-route"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "snapshot-create",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "create",
+        "--disk-id",
+        "synthetic-disk"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "snapshot-delete",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "delete",
+        "--id",
+        "synthetic-snapshot"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "restore-disk",
+      "argv": [
+        "yc",
+        "compute",
+        "disk",
+        "create",
+        "--source-snapshot-id",
+        "synthetic-snapshot"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "new-vm-start",
+      "argv": [
+        "yc",
+        "compute",
+        "instance",
+        "start",
+        "--id",
+        "synthetic-new-vm"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "new-vm-stop",
+      "argv": [
+        "yc",
+        "compute",
+        "instance",
+        "stop",
+        "--id",
+        "synthetic-new-vm"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "sg-update",
+      "argv": [
+        "yc",
+        "vpc",
+        "security-group",
+        "update",
+        "--id",
+        "synthetic-sg"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "caller-approved",
+      "argv": [
+        "yc",
+        "compute",
+        "snapshot",
+        "create",
+        "--disk-id",
+        "synthetic-disk",
+        "--approved"
+      ],
+      "expected_decision": "ASK_USER",
+      "purpose": "Не получает автоматический доступ в этом этапе #59."
+    },
+    {
+      "id": "guard-approve",
+      "argv": [
+        "yc",
+        "--guard",
+        "approve",
+        "synthetic-request"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Жёсткий запрет сохраняется."
+    },
+    {
+      "id": "guard-uninstall",
+      "argv": [
+        "yc",
+        "--guard",
+        "uninstall"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Жёсткий запрет сохраняется."
+    },
+    {
+      "id": "config-token",
+      "argv": [
+        "yc",
+        "config",
+        "get",
+        "token"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Жёсткий запрет сохраняется."
+    },
+    {
+      "id": "iam-key-read",
+      "argv": [
+        "yc",
+        "iam",
+        "key",
+        "get",
+        "--id",
+        "synthetic-key"
+      ],
+      "expected_decision": "DENY",
+      "purpose": "Жёсткий запрет сохраняется."
+    }
+  ]
+}
