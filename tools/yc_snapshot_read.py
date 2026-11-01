@@ -33,6 +33,18 @@ def require(ok, code="YC_READ_CONTEXT_INVALID"):
         raise ReadError(code)
 
 
+def provider_value(callback, *args):
+    failed = False
+    try:
+        value = callback(*args)
+    except Exception:
+        failed = True
+    if failed:
+        # Provider diagnostics may contain credential/config data; no cause retained.
+        raise ReadError("YC_READ_PROVIDER_UNAVAILABLE")
+    return value
+
+
 def canonical(value):
     failed = False
     try:
@@ -73,7 +85,7 @@ class ReadProfile:
 
     def operation(self):
         """An unapproved proposal, rebuilt exclusively from owner-supplied facts."""
-        ctx = self.current_context()
+        ctx = provider_value(self.current_context)
         require(type(ctx) is ReadContext and type(ctx.selection) is SnapshotSelection)
         s = ctx.selection
         for value in (ctx.cloud_id, s.folder_id, s.vm_id, s.disk_id, s.snapshot_id):
@@ -100,7 +112,7 @@ class ReadProfile:
             require(type(value) is str and re.fullmatch(r"[\x21-\x7e]{1,256}", value) is not None)
         require(type(ctx.observed_monotonic) is float)
         require(0 <= self.clock() - ctx.observed_monotonic <= MAX_AGE, "YC_READ_OBSERVATION_STALE")
-        native = self.native_check(ctx)
+        native = provider_value(self.native_check, ctx)
         require(type(native) is str and native in {"allow", "ask", "deny"}, "YC_READ_NATIVE_UNAVAILABLE")
         require(native != "deny", "YC_READ_NATIVE_DENY")
         common = ["--cloud-id", ctx.cloud_id, "--folder-id", s.folder_id,

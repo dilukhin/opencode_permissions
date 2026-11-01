@@ -111,6 +111,14 @@ class ReadProfileTests(unittest.TestCase):
             with self.assertRaises(ReadError):
                 self.profile.operation()
 
+    def test_provider_exception_does_not_disclose_private_diagnostics(self):
+        def broken(*_):
+            raise RuntimeError(PRIVATE)
+        for profile in (ReadProfile(broken, lambda _: "ask"), ReadProfile(lambda: self.ctx, broken)):
+            with self.subTest(provider=profile), self.assertRaisesRegex(ReadError, "^YC_READ_PROVIDER_UNAVAILABLE$") as caught:
+                profile.operation()
+            self.assertIsNone(caught.exception.__context__)
+
 
 class CaptureTests(unittest.TestCase):
     def test_both_streams_drained_but_only_bounded_stdout_returned(self):
