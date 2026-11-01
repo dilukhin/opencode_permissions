@@ -56,7 +56,7 @@ class DC4LinuxIdentityTests(unittest.TestCase):
         payload = adapter.prepare("/usr/bin/printf DC4_OK", self.root, self.root, "/bin/dash")
         result = payload["result"]
         guard = payload["guard"]
-        self.assertEqual(result["decision"], "ALLOW")
+        self.assertEqual(result["decision"], "ALLOW", payload)
         self.assertIsNotNone(guard)
         self.assertEqual(
             result["normalized_operation"]["execution"]["argv"],
@@ -78,7 +78,7 @@ class DC4LinuxIdentityTests(unittest.TestCase):
     def test_revalidation_binds_command_and_object_identity(self):
         payload = adapter.prepare("/usr/bin/printf DC4_OK", self.root, self.root, "/bin/dash")
         guard = payload["guard"]
-        self.assertIsNotNone(guard)
+        self.assertIsNotNone(guard, payload)
         ok = adapter.revalidate(
             guard,
             "/usr/bin/printf DC4_OK",
