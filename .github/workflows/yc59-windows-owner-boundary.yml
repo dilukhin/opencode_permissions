@@ -6,6 +6,10 @@ on:
       - '.github/workflows/yc59-windows-owner-boundary.yml'
       - 'tests/yc59_windows/**'
       - 'tests/test_yc59_windows_fixture.py'
+      - 'tests/test_yc_snapshot_read.py'
+      - 'tools/yc_snapshot_read.py'
+      - 'tools/yc_read_capture.py'
+      - 'tools/yc_read_projection.py'
   workflow_dispatch:
 
 permissions:
@@ -21,7 +25,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
-      - name: Fetch unchanged pinned existing approval owner core
+      - name: Fetch pinned existing approval owner core
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -35,3 +39,9 @@ jobs:
       - name: Exercise kernel peer SID and private channel under temporary non-admin account
         shell: pwsh
         run: python tests/yc59_windows/run_boundary_probe.py probe --owner-core $env:YC59_OWNER_CORE
+      - name: Exercise exact read binding and real bounded synthetic child processes
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -p test_yc_snapshot_read.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tests/yc59_windows/test_read_owner.py --owner-core $env:YC59_OWNER_CORE

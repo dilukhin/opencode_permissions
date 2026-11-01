@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 
 PINS = Path(__file__).with_name("pins.json")
@@ -137,14 +138,91 @@ def run_probe(core_path):
             checks.append("fresh_ledger_does_not_restore_old_approval")
             if server.errors:
                 raise AssertionError("SERVER_THREAD_FAILED")
+
+            # Real Windows SID/DACL, existing owner, typed YC intent, synthetic backend.
+            sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+            from yc_snapshot_read import ReadContext, ReadError, ReadProfile, dispatch_read
+            from yc_read_projection import SnapshotSelection
+            from dataclasses import replace
+            selection = SnapshotSelection("synthetic-folder", "synthetic-vm", "synthetic-disk", "synthetic-snapshot")
+            ctx = ReadContext(selection, "synthetic-cloud", str(uuid.uuid4()), time.monotonic(),
+                str(uuid.uuid4()), str(uuid.uuid4()), host, "a" * 64, str(root / "nonexistent-yc-fixture.exe"),
+                "synthetic-file-identity", "b" * 64, "synthetic-not-installed", str(root),
+                "synthetic-environment", str(uuid.uuid4()), "windows")
+            native, starts = ["ask"], []
+            profile = ReadProfile(lambda: ctx, lambda _: native[0])
+            payloads = {
+                "instance": {"id": selection.vm_id, "folderId": selection.folder_id,
+                    "bootDisk": {"diskId": selection.disk_id}, "metadata": {"user-data": "PRIVATE_SENTINEL"}},
+                "disk": {"id": selection.disk_id, "folderId": selection.folder_id, "instanceIds": [selection.vm_id],
+                    "status": "READY", "size": "1024", "typeId": "network-ssd", "zoneId": "ru-central1-a"},
+                "snapshot": {"id": selection.snapshot_id, "folderId": selection.folder_id,
+                    "sourceDiskId": selection.disk_id, "status": "READY", "diskSize": "1024",
+                    "createdAt": "2026-11-01T10:00:00Z", "description": "PRIVATE_SENTINEL"}}
+
+            def start_fixture(execution, argv):
+                if list(argv) not in profile.operation()["execution"]["argv"]:
+                    raise AssertionError("FIXTURE_ARGV_CHANGED")
+                starts.append(argv)
+                # This is explicitly NOT a YC binary invocation. Only synthetic JSON.
+                code = "import sys;sys.stdout.write(" + repr(json.dumps(payloads[argv[2]])) + ")"
+                return subprocess.Popen([sys.executable, "-I", "-c", code], stdin=subprocess.DEVNULL,
+                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
+
+            def consume_read(ledger, sid, request):
+                try:
+                    return dispatch_read(ledger, sid, request, profile=profile, start=start_fixture)
+                except ReadError as error:
+                    raise core.Refusal(error.code) from None
+
+            server = pipe.Server(core, owner_sid, account.sid, ctx.policy_revision, host,
+                "yc59-read-" + uuid.uuid4().hex, canonicalizer=profile.canonicalize,
+                consume_check=profile.check_consumption, consume_handler=consume_read)
+            proposal = expect(agent({"action": "propose", "operation": profile.operation()}), ok=True, state="pending")
+            bound = {k: proposal[k] for k in ("request_id", "operation_sha256")}
+            expect(agent({"action": "consume", **bound}), ok=False, code="APPROVAL_REQUIRED")
+            expect(agent({"action": "decide", **bound, "decision": "approve"}), ok=False, code="AGENT_CANNOT_DECIDE")
+            expect(agent({"action": "decide", **bound, "decision": "approve"}, private=True), ok=False, winerror=5)
+            if starts:
+                raise AssertionError("READ_BEFORE_APPROVAL")
+            reviewed = expect(owner({"action": "inspect", **bound}), ok=True)
+            if reviewed["operation"] != profile.operation():
+                raise AssertionError("YC_REVIEW_BINDING_CHANGED")
+            expect(owner({"action": "decide", **bound, "decision": "approve"}), ok=True, state="approved")
+            completed = expect(agent({"action": "consume", **bound}), ok=True, state="consumed", logical_reads_completed=3)
+            if len(starts) != 3 or "PRIVATE_SENTINEL" in json.dumps(completed):
+                raise AssertionError("READ_COUNT_OR_PROJECTION_FAILED")
+            expect(completed["projection"], snapshot_ready=True, restore_verified=False, independent_guard_readback=False)
+            expect(agent({"action": "consume", **bound}), ok=False, code="APPROVAL_REQUIRED")
+            if len(starts) != 3:
+                raise AssertionError("REPLAY_STARTED_READ")
+            checks.append("yc_profile_once_to_bounded_synthetic_projection")
+            for drift in ("snapshot", "native_deny"):
+                pending = expect(agent({"action": "propose", "operation": profile.operation()}), ok=True, state="pending")
+                token = {k: pending[k] for k in bound}
+                expect(owner({"action": "decide", **token, "decision": "approve"}), ok=True, state="approved")
+                original = ctx
+                if drift == "snapshot":
+                    ctx = replace(ctx, selection=replace(selection, snapshot_id="synthetic-other"))
+                else:
+                    native[0] = "deny"
+                expect(agent({"action": "consume", **token}), ok=False, code="CONSUME_CONTEXT_CHANGED")
+                ctx, native[0] = original, "ask"
+                expect(agent({"action": "consume", **token}), ok=False, code="APPROVAL_REQUIRED")
+                if len(starts) != 3:
+                    raise AssertionError("DRIFT_STARTED_READ")
+            checks.append("yc_target_drift_and_native_deny_revoke_before_start")
+            if server.errors:
+                raise AssertionError("YC_SERVER_THREAD_FAILED")
         finally:
             shutil.rmtree(root)
-    return {"schema": "yc59-windows-owner-boundary/v1", "result": "WINDOWS_ACCOUNT_BOUNDARY_OBSERVED",
+    return {"schema": "yc59-windows-owner-boundary/v2", "result": "WINDOWS_ACCOUNT_AND_SYNTHETIC_READ_BOUNDARY_OBSERVED",
             "peer_identity_source": "ImpersonateNamedPipeClient/TokenUser",
             "approval_origin": "automated_owner_account_fixture", "checks": checks,
             "human_consent_proven": False, "yc_authorization_binding_proven": False,
             "installed_host_proven": False, "deployment_authorized": False,
-            "cloud_invocations": 0, "operation_executions": 0, "temporary_account_removed": True}
+            "cloud_invocations": 0, "operation_executions": 0, "synthetic_child_processes": len(starts),
+            "yc_profile_binding_synthetic_proven": True, "temporary_account_removed": True}
 
 
 def client(request_path, output):
