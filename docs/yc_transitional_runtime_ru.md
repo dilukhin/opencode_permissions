@@ -53,3 +53,12 @@ Runtime не принимает `approved=True`, `authorized`, `policy_allow`, `
 ## Следующий gate
 
 После зелёного parser-only/mock CI следующий отдельный этап — installation/reconciliation design и controlled deployment поверх текущего YC guard. Только после read-back effective state допускается возвращение в LanFabric. Полная версия затем заменяет transitional state-change exception на trusted authorization binding.
+
+## Проверка снимка новой ВМ
+
+Граница задачи #59, минимальная проекция, отдельное свидетельство владельца
+и условия будущего адресного чтения описаны в
+[`yc_snapshot_scope_design_ru.md`](yc_snapshot_scope_design_ru.md).
+Текущий этап A0 закрепляет ASK/DENY тестами; новые getters и авторизация
+облачных изменений ещё не включены. `ASK_USER` не означает наличие рабочего
+интерактивного подтверждения в переходном runtime.
