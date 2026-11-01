@@ -44,7 +44,9 @@ jobs:
       fail-fast: false
       matrix:
         target: [current, '1.18.32']
-    runs-on: ubuntu-latest
+    # DC-4 proves an exact non-symlink executable profile, not arbitrary changes
+    # to the system utilities selected by ubuntu-latest.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
