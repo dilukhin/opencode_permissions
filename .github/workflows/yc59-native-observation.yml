@@ -1,0 +1,46 @@
+name: YC59 exact native observation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/yc59-native-observation.yml'
+      - 'tests/compatibility/run_yc59_native_1_19_5_probe.py'
+      - 'tests/compatibility/yc59_native_1_19_5_pins.json'
+      - 'tests/compatibility/run_windows_native_probe.py'
+      - 'tests/dc4_runtime/run_probe.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-windows-1195:
+    name: OpenCode 1.19.5 isolated Windows native observation
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - name: Download and verify pinned official observation binary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pins = Get-Content tests/compatibility/yc59_native_1_19_5_pins.json -Raw | ConvertFrom-Json
+          if ($pins.opencode_version -ne '1.19.5' -or $pins.deployment_authorized -ne $false) { throw 'Unexpected observation scope' }
+          $asset = $pins.assets.'opencode-windows-x64.zip'
+          $archive = Join-Path $env:RUNNER_TEMP 'yc59-opencode-windows-x64.zip'
+          Invoke-WebRequest -Uri 'https://github.com/anomalyco/opencode/releases/download/v1.19.5/opencode-windows-x64.zip' -OutFile $archive
+          if ((Get-Item $archive).Length -ne $asset.size) { throw 'Official archive size mismatch' }
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.sha256) { throw 'Official archive digest mismatch' }
+          $directory = Join-Path $env:RUNNER_TEMP 'yc59-opencode-1.19.5'
+          Expand-Archive -Path $archive -DestinationPath $directory
+          $binary = Get-ChildItem $directory -Recurse -File -Filter opencode.exe | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $binary) { throw 'Official observation executable missing' }
+          "YC59_OBSERVATION_BINARY=$binary" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Observe native allow deny once reject without YC
+        shell: pwsh
+        run: |
+          $shellPath = (Get-Command powershell.exe).Source
+          python tests/compatibility/run_yc59_native_1_19_5_probe.py --opencode $env:YC59_OBSERVATION_BINARY --shell $shellPath

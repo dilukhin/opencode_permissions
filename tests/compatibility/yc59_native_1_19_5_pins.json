@@ -1,0 +1,17 @@
+{
+  "schema": "yc59-native-observation-pins/v1",
+  "opencode_version": "1.19.5",
+  "upstream_commit": "810c0eba1a7348036f8bdf61e6632d0c36c6876c",
+  "scope": "isolated_native_permission_observation",
+  "deployment_authorized": false,
+  "assets": {
+    "opencode-windows-x64.zip": {
+      "sha256": "09a6e693157f0887e504f2cf4357a8cbddc5ead5d0dffb9a269dcc47c48640f5",
+      "size": 81738227
+    },
+    "opencode-linux-x64.tar.gz": {
+      "sha256": "588310a336fa3b9df36b3f0225b26f679d453efaad0cf3d66c3651ef3ec1647a",
+      "size": 79651896
+    }
+  }
+}
