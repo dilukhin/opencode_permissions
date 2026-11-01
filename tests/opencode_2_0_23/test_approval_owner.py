@@ -148,6 +148,44 @@ class ApprovalOwnerTests(unittest.TestCase):
         with self.assertRaises(Refusal):
             canonical(self.op)
 
+    def test_trusted_profile_does_not_let_agent_select_callbacks(self):
+        seen = []
+        ledger = Ledger(1, [2], self.op["policy_revision"], self.op["execution_host_id"],
+                        canonicalizer=lambda value: (seen.append(value), canonical(value))[1])
+        request = ledger.handle("agent", 2, {"action": "propose", "operation": operation()})
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(request["state"], "pending")
+        with self.assertRaisesRegex(Refusal, "UNEXPECTED_FIELDS"):
+            ledger.handle("agent", 2, {"action": "propose", "operation": operation(), "consume_check": "approve"})
+        self.assertEqual(len(seen), 1)
+
+    def test_failed_consume_context_check_revokes_approved_request(self):
+        def changed(_):
+            raise ValueError("synthetic-private-detail")
+        self.ledger.consume_check = changed  # Trusted fixture changes its configured provider.
+        self.approve()
+        with self.assertRaisesRegex(Refusal, "^CONSUME_CONTEXT_CHANGED$"):
+            self.call("consume")
+        self.assertEqual(self.call("inspect")["state"], "cancelled")
+        with self.assertRaisesRegex(Refusal, "APPROVAL_REQUIRED"):
+            self.call("consume")
+
+    def test_consume_context_check_cannot_extend_ttl(self):
+        self.ledger.consume_check = lambda _: self.time.__setitem__(0, 21)
+        self.approve()
+        with self.assertRaisesRegex(Refusal, "REQUEST_EXPIRED"):
+            self.call("consume")
+
+    def test_deny_hashes_are_not_silently_ignored_for_other_profiles(self):
+        def other(_):
+            return json.dumps({"policy_revision": self.op["policy_revision"],
+                               "execution_host_id": self.op["execution_host_id"]}).encode()
+        ledger = Ledger(1, [2], self.op["policy_revision"], self.op["execution_host_id"],
+                        canonicalizer=other, blocked_hashes=[self.op["command_sha256"]])
+        with self.assertRaisesRegex(Refusal, "DENY_PROFILE_UNSUPPORTED"):
+            ledger.handle("agent", 2, {"action": "propose", "operation": {}})
+        self.assertEqual(ledger.entries, {})
+
 
 if __name__ == "__main__":
     unittest.main()

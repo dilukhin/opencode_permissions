@@ -95,13 +95,18 @@ def canonical(operation):
 
 class Ledger:
     def __init__(self, owner_uid, agent_uids, policy_revision, execution_host_id, *, ttl=60,
-                 blocked_hashes=(), clock=time.monotonic):
+                 blocked_hashes=(), clock=time.monotonic, canonicalizer=canonical,
+                 consume_check=None):
         if owner_uid in agent_uids or not agent_uids or ttl <= 0:
             raise Refusal("AUTHORITY_NOT_SEPARATE")
         self.owner_uid, self.agent_uids = owner_uid, frozenset(agent_uids)
         self.policy_revision, self.execution_host_id = policy_revision, execution_host_id
         self.ttl, self.clock, self.blocked_hashes = ttl, clock, frozenset(blocked_hashes)
         self.instance = str(uuid.uuid4())
+        # Trusted composition-root callbacks only; never request/JSON fields.
+        if not callable(canonicalizer) or (consume_check is not None and not callable(consume_check)):
+            raise Refusal("TRUSTED_PROFILE_REQUIRED")
+        self.canonicalizer, self.consume_check = canonicalizer, consume_check
         self.entries = {}
         self.lock = threading.Lock()
         self.closed = False
@@ -131,13 +136,17 @@ class Ledger:
             action = request.get("action")
             if action == "propose":
                 keys(request, ("action", "operation"))
-                raw = canonical(request["operation"])
+                raw = self.canonicalizer(request["operation"])
+                if type(raw) is not bytes or len(raw) > 65536:
+                    raise Refusal("PROFILE_OUTPUT_INVALID")
                 operation = strict_json(raw)
                 if operation["policy_revision"] != self.policy_revision:
                     raise Refusal("POLICY_CHANGED")
                 if operation["execution_host_id"] != self.execution_host_id:
                     raise Refusal("HOST_CHANGED")
-                if operation["command_sha256"] in self.blocked_hashes:
+                if self.blocked_hashes and "command_sha256" not in operation:
+                    raise Refusal("DENY_PROFILE_UNSUPPORTED")
+                if operation.get("command_sha256") in self.blocked_hashes:
                     raise Refusal("POLICY_DENY")
                 if len(self.entries) >= 128:
                     raise Refusal("OWNER_CAPACITY")
@@ -158,6 +167,16 @@ class Ledger:
             if action == "consume":
                 if entry["state"] != "approved":
                     raise Refusal("APPROVAL_REQUIRED")
+                if self.consume_check is not None:
+                    try:
+                        self.consume_check(entry["operation"])
+                    except Exception:
+                        entry["state"] = "cancelled"
+                        raise Refusal("CONSUME_CONTEXT_CHANGED") from None
+                    # A slow trusted check must not extend the original deadline.
+                    if self.clock() >= entry["deadline"]:
+                        entry["state"] = "expired"
+                        raise Refusal("REQUEST_EXPIRED")
                 # Однократное потребление происходит до возврата ответа.
                 entry["state"] = "consumed"
             return self._view(entry)
