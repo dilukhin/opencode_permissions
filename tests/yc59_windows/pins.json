@@ -1,8 +1,8 @@
 {
   "schema": "yc59-windows-owner-pins/v1",
   "owner_core_repository": "dilukhin/opencode_permissions",
-  "owner_core_commit": "f1b05289106ef6cfb5bfbca7233cf8223578c1bb",
+  "owner_core_commit": "6ddac8d8a29c5c660fd373d9b2caa08735ed7a51",
   "owner_core_path": "tests/opencode_2_0_23/approval_owner.py",
-  "owner_core_sha256": "92d4bb2a7019e6c69357d6ba497bd123166a075c8c6430fccd30f553fdd9930b",
+  "owner_core_sha256": "d81f306b2a41b71f274c7e18841f6be8dd1785c1005f6e5860b823bdbd541bab",
   "deployment_authorized": false
 }

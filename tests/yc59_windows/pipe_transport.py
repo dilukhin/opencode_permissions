@@ -142,9 +142,13 @@ def call(address, request, expected_pid):
 
 
 class Server:
-    def __init__(self, core, owner_sid, agent_sid, policy, host, prefix, *, ttl=60):
+    def __init__(self, core, owner_sid, agent_sid, policy, host, prefix, *, ttl=60,
+                 canonicalizer=None, consume_check=None, consume_handler=None):
         self.core = core
-        self.ledger = core.Ledger(owner_sid, [agent_sid], policy, host, ttl=ttl)
+        hooks = {} if canonicalizer is None else {"canonicalizer": canonicalizer}
+        self.ledger = core.Ledger(owner_sid, [agent_sid], policy, host, ttl=ttl,
+                                  consume_check=consume_check, **hooks)
+        self.consume_handler = consume_handler  # Trusted bootstrap only, never JSON.
         self.addresses = {name: rf"\\.\pipe\{prefix}-{name}" for name in ("agent", "decision")}
         self.handles, self.threads, self.errors = [], [], []
         for channel, address in self.addresses.items():
@@ -176,7 +180,11 @@ class Server:
                 try:
                     raw = receive(handle)
                     sid = peer_sid(handle)
-                    result = self.ledger.handle(channel, sid, self.core.strict_json(raw))
+                    request = self.core.strict_json(raw)
+                    if channel == "agent" and request.get("action") == "consume" and self.consume_handler is not None:
+                        result = self.consume_handler(self.ledger, sid, request)
+                    else:
+                        result = self.ledger.handle(channel, sid, request)
                     send(handle, {"ok": True, **result})
                 except self.core.Refusal as error:
                     send(handle, {"ok": False, "code": str(error)})

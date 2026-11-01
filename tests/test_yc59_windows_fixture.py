@@ -10,6 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("yc59_windows_probe", ROOT / "tests/yc59_windows/run_boundary_probe.py")
 probe = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(probe)
+review_spec = importlib.util.spec_from_file_location("yc59_owner_review", ROOT / "tests/yc59_windows/review_read_request.py")
+review_ui = importlib.util.module_from_spec(review_spec)
+review_spec.loader.exec_module(review_ui)
 
 
 class WindowsFixtureGuards(unittest.TestCase):
@@ -26,6 +29,34 @@ class WindowsFixtureGuards(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "OWNER_CORE_DIGEST_MISMATCH"):
                 probe.load_core(source)
             self.assertFalse(marker.exists())
+
+    def test_review_pipe_or_reject_never_approves_implicitly(self):
+        from unittest.mock import Mock
+        call = Mock()
+        with self.assertRaisesRegex(ValueError, "OWNER_TERMINAL_REQUIRED"):
+            review_ui.review(call, "11111111-1111-4111-8111-111111111111", "a" * 64, terminal=False)
+        call.assert_not_called()
+        inspected = {"ok": True, "state": "pending", "request_id": "11111111-1111-4111-8111-111111111111", "operation_sha256": "a" * 64,
+                     "owner_instance_id": "instance", "operation": {"schema": "yc-snapshot-read/v1",
+                     "action": "yc.snapshot.read", "scope": {"snapshot_id": "fixture\u001b[31m\u202e"}}}
+        call.side_effect = [inspected, {**inspected, "state": "rejected"}]
+        displayed = []
+        result = review_ui.review(call, "11111111-1111-4111-8111-111111111111", "a" * 64, terminal=True,
+                                  read_line=lambda _: "", write_line=displayed.append)
+        self.assertEqual(result, "reject")
+        self.assertEqual(call.call_args.args[0]["decision"], "reject")
+        self.assertNotIn("\u001b", "".join(displayed))
+        self.assertNotIn("\u202e", "".join(displayed))
+
+    def test_review_exact_explicit_choice_binds_same_request_and_owner_epoch(self):
+        from unittest.mock import Mock
+        viewed = {"ok": True, "state": "pending", "request_id": "11111111-1111-4111-8111-111111111111", "operation_sha256": "a" * 64,
+                  "owner_instance_id": "instance", "operation": {"schema": "yc-snapshot-read/v1", "action": "yc.snapshot.read"}}
+        call = Mock(side_effect=[viewed, {**viewed, "state": "approved"}])
+        self.assertEqual(review_ui.review(call, "11111111-1111-4111-8111-111111111111", "a" * 64, terminal=True,
+            read_line=lambda _: "РАЗРЕШИТЬ ОДИН РАЗ 11111111-1111-4111-8111-111111111111", write_line=lambda _: None), "approve")
+        self.assertEqual(call.call_args.args[0], {"action": "decide", "request_id": "11111111-1111-4111-8111-111111111111",
+                                               "operation_sha256": "a" * 64, "decision": "approve"})
 
 
 if __name__ == "__main__":
