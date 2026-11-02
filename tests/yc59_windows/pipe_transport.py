@@ -12,6 +12,11 @@ import json
 import os
 import threading
 import time
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+import windows_owner_boundary as boundary
 
 if os.name != "nt":
     raise RuntimeError("WINDOWS_REQUIRED")
@@ -87,18 +92,22 @@ def current_sid():
         close(token)
 
 
-def peer_sid(pipe):
+def peer_principal(pipe):
     # Must follow successful ReadFile: Windows authenticates the LAST READ message.
     checked(impersonate(pipe))
     token = W.HANDLE()
     try:
         checked(open_thread_token(current_thread(), 8, True, C.byref(token)))
-        return token_sid(token)
+        return boundary.from_token(token)
     finally:
         if token:
             close(token)
         if not revert():
             os._exit(70)  # Never continue in a client's security context.
+
+
+def peer_sid(pipe):
+    return peer_principal(pipe).sid
 
 
 def receive(handle):
@@ -143,8 +152,14 @@ def call(address, request, expected_pid):
 
 class Server:
     def __init__(self, core, owner_sid, agent_sid, policy, host, prefix, *, ttl=60,
-                 canonicalizer=None, consume_check=None, consume_handler=None):
+                 canonicalizer=None, consume_check=None, consume_handler=None,
+                 require_separate_sessions=True):
         self.core = core
+        self.owner = boundary.current()
+        if self.owner.sid != owner_sid:
+            raise boundary.BoundaryError("OWNER_TOKEN_MISMATCH")
+        self.agent_sid, self.require_separate_sessions = agent_sid, require_separate_sessions
+        self.origins = {}
         hooks = {} if canonicalizer is None else {"canonicalizer": canonicalizer}
         self.ledger = core.Ledger(owner_sid, [agent_sid], policy, host, ttl=ttl,
                                   consume_check=consume_check, **hooks)
@@ -179,14 +194,25 @@ class Server:
                     raise C.WinError(C.get_last_error())
                 try:
                     raw = receive(handle)
-                    sid = peer_sid(handle)
+                    peer = peer_principal(handle)
+                    sid = peer.sid
+                    if channel == "agent" and self.require_separate_sessions:
+                        boundary.admit(self.owner, peer, self.agent_sid)
                     request = self.core.strict_json(raw)
                     if channel == "agent" and request.get("action") == "consume" and self.consume_handler is not None:
                         result = self.consume_handler(self.ledger, sid, request)
                     else:
                         result = self.ledger.handle(channel, sid, request)
+                    if channel == "agent" and request.get("action") == "propose":
+                        self.origins[result["request_id"]] = {"sid": peer.sid, "session_id": peer.session_id}
+                    if channel == "decision" and request.get("action") == "inspect":
+                        result = {**result, "owner_actor": {"sid": self.owner.sid, "session_id": self.owner.session_id},
+                                  "request_origin": self.origins.get(result["request_id"]),
+                                  "session_separation_required": self.require_separate_sessions}
                     send(handle, {"ok": True, **result})
                 except self.core.Refusal as error:
+                    send(handle, {"ok": False, "code": str(error)})
+                except boundary.BoundaryError as error:
                     send(handle, {"ok": False, "code": str(error)})
                 except (OSError, ValueError):
                     # Broken/oversized/malformed clients never produce an authorization.
