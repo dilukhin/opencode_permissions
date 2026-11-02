@@ -13,6 +13,13 @@ spec.loader.exec_module(probe)
 review_spec = importlib.util.spec_from_file_location("yc59_owner_review", ROOT / "tests/yc59_windows/review_read_request.py")
 review_ui = importlib.util.module_from_spec(review_spec)
 review_spec.loader.exec_module(review_ui)
+OWNER = review_ui.boundary.Principal("S-1-5-21-1", 2)
+AGENT = "S-1-5-21-2"
+
+
+def with_origin(value):
+    return {**value, "owner_actor": {"sid": OWNER.sid, "session_id": OWNER.session_id},
+            "request_origin": {"sid": AGENT, "session_id": 3}, "session_separation_required": True}
 
 
 class WindowsFixtureGuards(unittest.TestCase):
@@ -39,9 +46,10 @@ class WindowsFixtureGuards(unittest.TestCase):
         inspected = {"ok": True, "state": "pending", "request_id": "11111111-1111-4111-8111-111111111111", "operation_sha256": "a" * 64,
                      "owner_instance_id": "instance", "operation": {"schema": "yc-snapshot-read/v1",
                      "action": "yc.snapshot.read", "scope": {"snapshot_id": "fixture\u001b[31m\u202e"}}}
-        call.side_effect = [inspected, {**inspected, "state": "rejected"}]
+        call.side_effect = [with_origin(inspected), {**inspected, "state": "rejected"}]
         displayed = []
         result = review_ui.review(call, "11111111-1111-4111-8111-111111111111", "a" * 64, terminal=True,
+                                  owner_actor=OWNER, agent_sid=AGENT,
                                   read_line=lambda _: "", write_line=displayed.append)
         self.assertEqual(result, "reject")
         self.assertEqual(call.call_args.args[0]["decision"], "reject")
@@ -52,11 +60,25 @@ class WindowsFixtureGuards(unittest.TestCase):
         from unittest.mock import Mock
         viewed = {"ok": True, "state": "pending", "request_id": "11111111-1111-4111-8111-111111111111", "operation_sha256": "a" * 64,
                   "owner_instance_id": "instance", "operation": {"schema": "yc-snapshot-read/v1", "action": "yc.snapshot.read"}}
-        call = Mock(side_effect=[viewed, {**viewed, "state": "approved"}])
+        call = Mock(side_effect=[with_origin(viewed), {**viewed, "state": "approved"}])
         self.assertEqual(review_ui.review(call, "11111111-1111-4111-8111-111111111111", "a" * 64, terminal=True,
+            owner_actor=OWNER, agent_sid=AGENT,
             read_line=lambda _: "РАЗРЕШИТЬ ОДИН РАЗ 11111111-1111-4111-8111-111111111111", write_line=lambda _: None), "approve")
         self.assertEqual(call.call_args.args[0], {"action": "decide", "request_id": "11111111-1111-4111-8111-111111111111",
                                                "operation_sha256": "a" * 64, "decision": "approve"})
+
+    def test_review_rejects_same_session_and_fixture_mode_before_reading_input(self):
+        from unittest.mock import Mock
+        viewed = with_origin({"ok": True, "state": "pending", "request_id": "11111111-1111-4111-8111-111111111111",
+            "operation_sha256": "a" * 64, "owner_instance_id": "instance",
+            "operation": {"schema": "yc-snapshot-read/v1", "action": "yc.snapshot.read"}})
+        for changed in ({"request_origin": {"sid": AGENT, "session_id": 2}}, {"session_separation_required": False}):
+            call, read_line = Mock(return_value={**viewed, **changed}), Mock()
+            with self.assertRaises(ValueError):
+                review_ui.review(call, viewed["request_id"], "a" * 64, terminal=True,
+                                 owner_actor=OWNER, agent_sid=AGENT, read_line=read_line)
+            self.assertEqual(call.call_count, 1)
+            read_line.assert_not_called()
 
 
 if __name__ == "__main__":

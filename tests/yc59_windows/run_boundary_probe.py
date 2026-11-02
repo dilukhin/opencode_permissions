@@ -65,12 +65,17 @@ def run_probe(core_path):
                             "*S-1-5-18:(OI)(CI)F"], check=True, capture_output=True)
             for name in ("run_boundary_probe.py", "pipe_transport.py"):
                 shutil.copyfile(Path(__file__).with_name(name), root / name)
+            # The copied client imports the token observer from a minimal tools tree.
+            # Agent receives read-only source, never owner state or credentials.
+            shutil.copyfile(Path(__file__).resolve().parents[2] / "tools/windows_owner_boundary.py",
+                            root / "windows_owner_boundary.py")
             exchange = root / "exchange"
             exchange.mkdir()
             subprocess.run(["icacls.exe", str(exchange), "/grant:r", f"*{account.sid}:(OI)(CI)M"],
                            check=True, capture_output=True)
             policy, host = "synthetic-owner-policy/v1", str(uuid.uuid4())
-            server = pipe.Server(core, owner_sid, account.sid, policy, host, "yc59-" + uuid.uuid4().hex)
+            server = pipe.Server(core, owner_sid, account.sid, policy, host, "yc59-" + uuid.uuid4().hex,
+                                 require_separate_sessions=False)
             sequence = 0
 
             def agent(request, *, private=False, expected_pid=None):
@@ -138,6 +143,14 @@ def run_probe(core_path):
             checks.append("fresh_ledger_does_not_restore_old_approval")
             if server.errors:
                 raise AssertionError("SERVER_THREAD_FAILED")
+            server = pipe.Server(core, owner_sid, account.sid, policy, host, "yc59-strict-" + uuid.uuid4().hex)
+            refused = agent({"action": "propose", "operation": operation})
+            if (refused.get("ok") is not False or refused.get("code") not in
+                    {"SEPARATE_WINDOWS_SESSIONS_REQUIRED", "INTERACTIVE_WINDOWS_SESSIONS_REQUIRED"}):
+                raise AssertionError("SAME_SESSION_MUST_NOT_ADMIT_OWNER_UI")
+            if server.ledger.entries:
+                raise AssertionError("SAME_SESSION_CREATED_APPROVAL")
+            checks.append("strict_profile_refuses_same_or_noninteractive_windows_session")
 
             # Real Windows SID/DACL, existing owner, typed YC intent, synthetic backend.
             sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
@@ -177,7 +190,8 @@ def run_probe(core_path):
 
             server = pipe.Server(core, owner_sid, account.sid, ctx.policy_revision, host,
                 "yc59-read-" + uuid.uuid4().hex, canonicalizer=profile.canonicalize,
-                consume_check=profile.check_consumption, consume_handler=consume_read)
+                consume_check=profile.check_consumption, consume_handler=consume_read,
+                require_separate_sessions=False)
             proposal = expect(agent({"action": "propose", "operation": profile.operation()}), ok=True, state="pending")
             bound = {k: proposal[k] for k in ("request_id", "operation_sha256")}
             expect(agent({"action": "consume", **bound}), ok=False, code="APPROVAL_REQUIRED")
@@ -222,7 +236,9 @@ def run_probe(core_path):
             "human_consent_proven": False, "yc_authorization_binding_proven": False,
             "installed_host_proven": False, "deployment_authorized": False,
             "cloud_invocations": 0, "operation_executions": 0, "synthetic_child_processes": len(starts),
-            "yc_profile_binding_synthetic_proven": True, "temporary_account_removed": True}
+            "yc_profile_binding_synthetic_proven": True, "temporary_account_removed": True,
+            "positive_scope": "same_windows_session_transport_fixture_only",
+            "separate_interactive_sessions_proven": False}
 
 
 def client(request_path, output):

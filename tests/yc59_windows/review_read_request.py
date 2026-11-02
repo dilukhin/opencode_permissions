@@ -9,9 +9,14 @@ import os
 import re
 import sys
 import uuid
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+import windows_owner_boundary as boundary
 
 
-def review(call, request_id, digest, *, terminal, read_line=input, write_line=print):
+def review(call, request_id, digest, *, terminal, owner_actor=None, agent_sid=None,
+           read_line=input, write_line=print):
     if not terminal:
         raise ValueError("OWNER_TERMINAL_REQUIRED")
     try:
@@ -29,6 +34,14 @@ def review(call, request_id, digest, *, terminal, read_line=input, write_line=pr
         raise ValueError("OWNER_READ_PROFILE_REQUIRED")
     if inspected.get("request_id") != request_id or inspected.get("operation_sha256") != digest:
         raise ValueError("OWNER_REVIEW_BINDING_CHANGED")
+    boundary.validate(owner_actor)
+    if inspected.get("owner_actor") != {"sid": owner_actor.sid, "session_id": owner_actor.session_id}:
+        raise ValueError("OWNER_ACTOR_MISMATCH")
+    origin = inspected.get("request_origin")
+    if (inspected.get("session_separation_required") is not True or type(origin) is not dict
+            or set(origin) != {"sid", "session_id"}):
+        raise ValueError("OWNER_INTERACTIVE_PROFILE_REQUIRED")
+    boundary.admit(owner_actor, boundary.Principal(**origin), agent_sid)
     write_line("Испытательный запрос: прочитать ВМ, диск и снимок по точным ID.")
     write_line("Облачные ресурсы не изменяются. Ответ ограничивается проверенными полями.")
     write_line("Готовность снимка не доказывает возможность восстановления.")
@@ -55,10 +68,11 @@ def main():
     parser.add_argument("--server-pid", type=int, required=True)
     parser.add_argument("--request-id", required=True)
     parser.add_argument("--operation-sha256", required=True)
+    parser.add_argument("--agent-sid", required=True)
     args = parser.parse_args()
     from pipe_transport import call
     review(lambda request: call(args.pipe, request, args.server_pid), args.request_id,
-           args.operation_sha256, terminal=True)
+           args.operation_sha256, terminal=True, owner_actor=boundary.current(), agent_sid=args.agent_sid)
 
 
 if __name__ == "__main__":
