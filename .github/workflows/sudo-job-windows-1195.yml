@@ -1,0 +1,73 @@
+name: sudo-job — OpenCode 1.19.5 Windows (только наблюдение)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/sudo-job-windows-1195.yml'
+      - 'docs/sudo_job_dima_hp_1_19_5_gate_ru.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-native-and-owner-boundary:
+    name: Native 1.19.5 и отдельная граница Windows без sudo-job
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Получить HEAD проверяемого PR
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: policy
+          persist-credentials: false
+      - name: Получить точную Windows-испытательную базу main
+        uses: actions/checkout@v6
+        with:
+          repository: dilukhin/opencode_permissions
+          ref: 8aa08878a285371ccec55b3c84c0950543dcd3e9
+          path: windows-baseline
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - name: Проверить точные ревизии
+        shell: pwsh
+        run: |
+          if ((git -C policy rev-parse HEAD).Trim() -ne '${{ github.event.pull_request.head.sha || github.sha }}') { throw 'PR HEAD changed' }
+          if ((git -C windows-baseline rev-parse HEAD).Trim() -ne '8aa08878a285371ccec55b3c84c0950543dcd3e9') { throw 'Windows fixture SHA changed' }
+      - name: Получить официальный OpenCode 1.19.5 с проверкой SHA-256
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pins = Get-Content windows-baseline/tests/compatibility/yc59_native_1_19_5_pins.json -Raw | ConvertFrom-Json
+          if ($pins.opencode_version -ne '1.19.5' -or $pins.upstream_commit -ne '810c0eba1a7348036f8bdf61e6632d0c36c6876c' -or $pins.deployment_authorized -ne $false) { throw 'Native pin mismatch' }
+          $asset = $pins.assets.'opencode-windows-x64.zip'
+          $archive = Join-Path $env:RUNNER_TEMP 'opencode-windows-x64.zip'
+          Invoke-WebRequest -Uri 'https://github.com/anomalyco/opencode/releases/download/v1.19.5/opencode-windows-x64.zip' -OutFile $archive
+          if ((Get-Item $archive).Length -ne $asset.size) { throw 'Binary size mismatch' }
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.sha256) { throw 'Binary SHA-256 mismatch' }
+          $directory = Join-Path $env:RUNNER_TEMP 'opencode-1.19.5'
+          Expand-Archive -Path $archive -DestinationPath $directory
+          $binary = Get-ChildItem $directory -Recurse -File -Filter opencode.exe | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $binary) { throw 'Binary absent' }
+          "TEST_OPENCODE_BINARY=$binary" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Проверить native allow deny once reject (без вызова sudo)
+        shell: pwsh
+        run: |
+          $shellPath = (Get-Command powershell.exe).Source
+          python windows-baseline/tests/compatibility/run_yc59_native_1_19_5_probe.py --opencode $env:TEST_OPENCODE_BINARY --shell $shellPath
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Проверить отказы Windows при одном SID или сеансе
+        working-directory: windows-baseline
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -p test_windows_owner_boundary.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Записать пределы опыта
+        if: always()
+        shell: pwsh
+        run: |
+          "Это CI-опыт Windows 1.19.5 и отказов межсеансовой границы, а не разрешение человеческого ввода." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "Вызов agent-safe sudo-job и реальный sudo-job здесь отсутствуют. Статус черновика сохраняется." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
