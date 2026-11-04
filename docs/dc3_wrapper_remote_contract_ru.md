@@ -192,6 +192,49 @@ Missing remote host/source/destination identity -> ASK без identity.
 
 `job stop` отмечается как process control / remote state change и остаётся ASK.
 
+### Длительные sudo-job (#46)
+
+`sudo-job start/status/tail/wait/stop` распознаются отдельно от обычного `job`.
+Ни один путь не получает автоматического `ALLOW`.
+
+Для `start` вложенная удалённая команда анализируется тем же bounded-анализатором:
+подтверждённый hard DENY сохраняется, остальные случаи требуют решения пользователя.
+`status` и `wait` — наблюдение состояния, `tail` дополнительно помечается
+`possible_sensitive_output`, а `stop` — отдельная root-мутация управления
+процессом.
+
+Воспроизводимая `operation_identity` создаётся только при наличии доверенного
+`sudo_job_identity`: UUID задания/транзакции, SHA-256 команды, object identity
+файла ожидания и полная проверенная SSH identity (endpoint, host key, daemon
+instance/generation/source SHA). Эти поля сверяются с точным argv; для `start`
+hash дополнительно вычисляется из точных UTF-8 байт удалённой команды.
+Сам путь `--expected-identity-file`, UUID или caller-controlled JSON не является
+доказательством разрешения. Отсутствие/дрейф binding даёт `ASK_USER` без
+`operation_identity`.
+
+Чтобы не расширять общий набор видов `NormalizedOperation` и не менять существующий
+P0 runtime artifact, `sudo-job` использует уже поддерживаемый контейнер
+`operation_kind=remote_exec` / `execution.kind=remote_argv`. Его `argv` — не
+командная строка root-процесса, а несекретный точный вектор привязки
+`sudo-job + operation + job_id + transaction_id + command_sha256`; полный payload
+по-прежнему анализируется отдельно. Поля `sudo_job_operation`, `privilege` и
+verified identity остаются частью канонической identity.
+
+Дополнительно `relay_invocation_sha256` связывает точный внешний argv, identity
+исполняемого файла и рабочего каталога. Поэтому смена relay-сессии, потока или
+лимита `tail`, параметров `wait` либо локального executable/cwd не переносит
+старое одноразовое разрешение. Полный argv с root-командой в нормализованный
+объект не копируется. Проверенные формы CLI разбираются по полным именам
+параметров; неизвестные, повторные и недопустимые параметры, а также расхождение
+фактического позиционного payload с разобранной командой дают `ASK_USER`
+без identity. Прочие допустимые для argparse сокращённые формы пока тоже ASK.
+
+Эти проверки относятся к детерминированной библиотеке, а не к выпуску полного
+пути исполнения. `BrokerStateModel` в тестах — имитация, не доверенный источник
+согласия OpenCode. До поддержки реального host bridge и совместного теста
+разрешения, запуска и завершения #46 остаётся открытым; `--approved` не является
+заменой такого доказательства.
+
 ## 6. Projection
 
 Machine-readable projection:
@@ -200,7 +243,7 @@ Machine-readable projection:
 tests/classifier_cases/dc3_cases.json
 ```
 
-20 cases покрывают:
+26 cases покрывают:
 
 - benign agent-safe controlled payload;
 - nested system write;
@@ -213,6 +256,7 @@ tests/classifier_cases/dc3_cases.json
 - upload/download exact identity;
 - job start benign/destructive;
 - job tail sensitivity;
+- sudo-job start/read/tail/stop, destructive child и отсутствие trusted binding;
 - unknown/opaque wrapper;
 - native DENY terminal;
 - incomplete transfer identity.
