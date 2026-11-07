@@ -116,10 +116,10 @@ def require_standard_agent_token(token):
         size = W.DWORD()
         api.GetTokenInformation(token, kind, None, 0, C.byref(size))
         if not 0 < size.value <= 65536:
-            raise BoundaryError("WINDOWS_AGENT_TOKEN_UNAVAILABLE")
+            raise BoundaryError(f"WINDOWS_AGENT_TOKEN_SIZE_{kind}_UNAVAILABLE")
         buffer = C.create_string_buffer(size.value)
         if not api.GetTokenInformation(token, kind, buffer, size, C.byref(size)):
-            raise BoundaryError("WINDOWS_AGENT_TOKEN_UNAVAILABLE")
+            raise BoundaryError(f"WINDOWS_AGENT_TOKEN_QUERY_{kind}_UNAVAILABLE")
         return buffer
 
     def sid_text(pointer):
@@ -172,6 +172,6 @@ def require_standard_agent_token(token):
     for index in range(count):
         size, name = W.DWORD(256), C.create_unicode_buffer(256)
         if not api.LookupPrivilegeNameW(None, C.byref(entries[index].luid), name, C.byref(size)):
-            raise BoundaryError("WINDOWS_AGENT_TOKEN_UNAVAILABLE")
+            raise BoundaryError("WINDOWS_AGENT_PRIVILEGE_NAME_UNAVAILABLE")
         if name.value not in safe:
             raise BoundaryError("STANDARD_AGENT_TOKEN_REQUIRED")

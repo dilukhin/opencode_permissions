@@ -185,14 +185,18 @@ class Kernel:
         token = W.HANDLE()
         try:
             _require(self.open_thread_token(self.thread(), 8, True, C.byref(token)), "PIPE_CLIENT_TOKEN_FAILED")
+        finally:
+            if not self.revert():
+                os._exit(70)
+        try:
+            # Inspect the retained authenticated token as the server, never run
+            # local security-provider queries while impersonating an identification token.
             if standard_agent:
                 boundary.require_standard_agent_token(token)
             return boundary.from_token(token)
         finally:
             if token:
                 self.close(token)
-            if not self.revert():
-                os._exit(70)
 
     def authenticate_server(self, handle, expected_owner, expected_pid):
         boundary.validate(expected_owner)
