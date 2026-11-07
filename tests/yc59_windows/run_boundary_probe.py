@@ -244,7 +244,7 @@ def run_probe(core_path):
                 account.run([sys.executable, str(root / "run_boundary_probe.py"), "client-bounded",
                              "--request", str(request_path), "--output", str(result_path)], exchange)
                 expect(json.loads(result_path.read_text(encoding="utf-8")), ok=True,
-                       token_duplicate_denied=True, process_write_denied=True)
+                       token_duplicate_denied=True, process_write_denied=True, standard_agent_token_proven=True)
                 if received != [("agent", account.sid)]:
                     raise AssertionError("BOUNDED_PEER_SID_MISMATCH")
             checks.append("bounded_transport_cross_account_server_token_query_without_write_or_duplicate")
@@ -280,6 +280,15 @@ def client_bounded(request_path, output):
     k = bounded.Kernel()
     value = json.loads(bounded.call(request["address"], b"synthetic", expected_pid=request["pid"],
                                    expected_owner=boundary.Principal(**request["owner"])))
+    own_token = W.HANDLE()
+    pipe_process = k.current_process()
+    if not k.open_process_token(pipe_process, 8, C.byref(own_token)):
+        raise AssertionError("AGENT_TOKEN_QUERY_FAILED")
+    try:
+        boundary.require_standard_agent_token(own_token)
+        value["standard_agent_token_proven"] = True
+    finally:
+        k.close(own_token)
     process = k.open_process(0x1000, False, request["pid"])
     if not process:
         raise AssertionError("SERVER_QUERY_GRANT_MISSING")

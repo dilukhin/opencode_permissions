@@ -179,12 +179,14 @@ class Kernel:
                 self.result(handle, C.byref(overlap), C.byref(count), False)
             self.close(event)
 
-    def principal(self, handle):
+    def principal(self, handle, *, standard_agent=False):
         # Call only after successfully reading the client's message.
         _require(self.impersonate(handle), "PIPE_CLIENT_TOKEN_FAILED")
         token = W.HANDLE()
         try:
             _require(self.open_thread_token(self.thread(), 8, True, C.byref(token)), "PIPE_CLIENT_TOKEN_FAILED")
+            if standard_agent:
+                boundary.require_standard_agent_token(token)
             return boundary.from_token(token)
         finally:
             if token:
@@ -297,7 +299,7 @@ class Transport:
                     self.k.transfer(handle, "connect", deadline=time.monotonic() + self.io_timeout, stop=self.stop)
                     deadline = time.monotonic() + self.io_timeout
                     raw = self.k.transfer(handle, "read", deadline=deadline, stop=self.stop)
-                    principal = self.k.principal(handle)
+                    principal = self.k.principal(handle, standard_agent=channel == "agent")
                     _require(principal.sid == (self.agent_sid if channel == "agent" else self.owner.sid),
                              "PIPE_WRONG_CLIENT")
                     result = self.handler(channel, principal, raw)
@@ -306,7 +308,7 @@ class Transport:
                     # Explicit ACK replaces unbounded FlushFileBuffers.
                     _require(self.k.transfer(handle, "read", deadline=deadline, stop=self.stop, limit=1) == ACK,
                              "PIPE_REPLY_NOT_ACKNOWLEDGED")
-                except PipeError:
+                except (PipeError, boundary.BoundaryError):
                     pass  # no raw message/exception retained or logged
                 finally:
                     self.k.disconnect(handle)
