@@ -11,6 +11,7 @@ on:
       - 'tools/yc_read_capture.py'
       - 'tools/yc_read_projection.py'
       - 'tools/windows_owner_boundary.py'
+      - 'tools/windows_owner_pipe.py'
       - 'tools/yc_owner_actor_probe.py'
       - 'tests/test_windows_owner_boundary.py'
   workflow_dispatch:

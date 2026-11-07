@@ -46,6 +46,15 @@ class SecurityAttributes(C.Structure):
     _fields_ = [("length", W.DWORD), ("descriptor", C.c_void_p), ("inherit", W.BOOL)]
 
 
+class Trustee(C.Structure):
+    _fields_ = [("multiple", C.c_void_p), ("operation", W.DWORD), ("form", W.DWORD),
+                ("kind", W.DWORD), ("name", C.c_void_p)]
+
+
+class ExplicitAccess(C.Structure):
+    _fields_ = [("permissions", W.DWORD), ("mode", W.DWORD), ("inherit", W.DWORD), ("trustee", Trustee)]
+
+
 class Kernel:
     def __init__(self):
         _require(os.name == "nt", "WINDOWS_REQUIRED")
@@ -73,6 +82,51 @@ class Kernel:
         self.descriptor = _api(a, "ConvertStringSecurityDescriptorToSecurityDescriptorW", W.BOOL,
                                W.LPCWSTR, W.DWORD, C.POINTER(C.c_void_p), C.POINTER(W.DWORD))
         self.free = _api(k, "LocalFree", C.c_void_p, C.c_void_p)
+        self.current_process = _api(k, "GetCurrentProcess", W.HANDLE)
+        self.string_sid = _api(a, "ConvertStringSidToSidW", W.BOOL, W.LPCWSTR, C.POINTER(C.c_void_p))
+        self.get_security = _api(a, "GetSecurityInfo", W.DWORD, W.HANDLE, C.c_int, W.DWORD,
+                                 C.c_void_p, C.c_void_p, C.POINTER(C.c_void_p), C.c_void_p, C.POINTER(C.c_void_p))
+        self.set_security = _api(a, "SetSecurityInfo", W.DWORD, W.HANDLE, C.c_int, W.DWORD,
+                                 C.c_void_p, C.c_void_p, C.c_void_p, C.c_void_p)
+        self.merge_acl = _api(a, "SetEntriesInAclW", W.DWORD, W.ULONG, C.POINTER(ExplicitAccess),
+                              C.c_void_p, C.POINTER(C.c_void_p))
+
+    def allow_identity_query(self, agent_sid):
+        """Restrict one SID to QUERY on THIS process/token; no debug privilege.
+
+        The grants live with these kernel objects. Existing ACEs are preserved.
+        No token duplicate/impersonate/adjust or process VM/write/control access.
+        """
+        sid, token = C.c_void_p(), W.HANDLE()
+        _require(self.string_sid(agent_sid, C.byref(sid)), "PIPE_AGENT_SID_INVALID")
+        try:
+            process = self.current_process()
+            _require(self.open_process_token(process, 0x60008, C.byref(token)), "PIPE_SERVER_TOKEN_DACL_UNAVAILABLE")
+            for handle, access, all_access in ((process, 0x1000, 0x1FFFFF), (token, 8, 0xF01FF)):
+                descriptor, old_acl, new_acl = C.c_void_p(), C.c_void_p(), C.c_void_p()
+                try:
+                    _require(self.get_security(handle, 6, 4, None, None, C.byref(old_acl), None,
+                                               C.byref(descriptor)) == 0 and old_acl.value,
+                             "PIPE_SERVER_DACL_UNAVAILABLE")
+                    # Default group ACEs may already allow TOKEN_DUPLICATE. An allow
+                    # of QUERY alone cannot narrow them: deny all other mapped rights
+                    # for this exact agent SID, then grant only identity query.
+                    entries = (ExplicitAccess * 2)(
+                        ExplicitAccess(all_access & ~access, 3, 0, Trustee(None, 0, 0, 1, sid)),
+                        ExplicitAccess(access, 1, 0, Trustee(None, 0, 0, 1, sid)))
+                    _require(self.merge_acl(2, entries, old_acl, C.byref(new_acl)) == 0,
+                             "PIPE_SERVER_QUERY_GRANT_FAILED")
+                    _require(self.set_security(handle, 6, 4, None, None, new_acl, None) == 0,
+                             "PIPE_SERVER_QUERY_GRANT_FAILED")
+                finally:
+                    if new_acl:
+                        self.free(new_acl)
+                    if descriptor:
+                        self.free(descriptor)
+        finally:
+            if token:
+                self.close(token)
+            self.free(sid)
 
     def transfer(self, handle, kind, *, deadline, stop, raw=None, limit=LIMIT):
         event = self.event(None, True, False, None)
@@ -125,18 +179,24 @@ class Kernel:
                 self.result(handle, C.byref(overlap), C.byref(count), False)
             self.close(event)
 
-    def principal(self, handle):
+    def principal(self, handle, *, standard_agent=False):
         # Call only after successfully reading the client's message.
         _require(self.impersonate(handle), "PIPE_CLIENT_TOKEN_FAILED")
         token = W.HANDLE()
         try:
             _require(self.open_thread_token(self.thread(), 8, True, C.byref(token)), "PIPE_CLIENT_TOKEN_FAILED")
+        finally:
+            if not self.revert():
+                os._exit(70)
+        try:
+            # Inspect the retained authenticated token as the server, never run
+            # local security-provider queries while impersonating an identification token.
+            if standard_agent:
+                boundary.require_standard_agent_token(token)
             return boundary.from_token(token)
         finally:
             if token:
                 self.close(token)
-            if not self.revert():
-                os._exit(70)
 
     def authenticate_server(self, handle, expected_owner, expected_pid):
         boundary.validate(expected_owner)
@@ -208,10 +268,12 @@ class Transport:
         _require(type(handler_limit) in (int, float) and math.isfinite(handler_limit) and 0 < handler_limit <= 35,
                  "PIPE_HANDLER_LIMIT_INVALID")
         self.k, self.stop = Kernel(), threading.Event()
+        self.k.allow_identity_query(agent_sid)
         self.handler, self.agent_sid = handler, agent_sid
         self.io_timeout, self.handler_limit = io_timeout, handler_limit
         self.addresses = {name: _address(rf"\\.\pipe\{prefix}-{name}") for name in ("agent", "decision")}
         self.handles, self.threads, self.failed = [], [], threading.Event()
+        self.last_refusal = {}  # at most two fixed codes, never raw requests/exception diagnostics
         try:
             for channel, address in self.addresses.items():
                 acl = f"D:P(A;;GA;;;SY)(A;;GA;;;{self.owner.sid})"
@@ -242,7 +304,7 @@ class Transport:
                     self.k.transfer(handle, "connect", deadline=time.monotonic() + self.io_timeout, stop=self.stop)
                     deadline = time.monotonic() + self.io_timeout
                     raw = self.k.transfer(handle, "read", deadline=deadline, stop=self.stop)
-                    principal = self.k.principal(handle)
+                    principal = self.k.principal(handle, standard_agent=channel == "agent")
                     _require(principal.sid == (self.agent_sid if channel == "agent" else self.owner.sid),
                              "PIPE_WRONG_CLIENT")
                     result = self.handler(channel, principal, raw)
@@ -251,8 +313,8 @@ class Transport:
                     # Explicit ACK replaces unbounded FlushFileBuffers.
                     _require(self.k.transfer(handle, "read", deadline=deadline, stop=self.stop, limit=1) == ACK,
                              "PIPE_REPLY_NOT_ACKNOWLEDGED")
-                except PipeError:
-                    pass  # no raw message/exception retained or logged
+                except (PipeError, boundary.BoundaryError) as error:
+                    self.last_refusal[channel] = str(error)
                 finally:
                     self.k.disconnect(handle)
         except BaseException:
