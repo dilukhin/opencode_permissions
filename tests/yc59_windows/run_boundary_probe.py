@@ -69,6 +69,8 @@ def run_probe(core_path):
             # Agent receives read-only source, never owner state or credentials.
             shutil.copyfile(Path(__file__).resolve().parents[2] / "tools/windows_owner_boundary.py",
                             root / "windows_owner_boundary.py")
+            shutil.copyfile(Path(__file__).resolve().parents[2] / "tools/windows_owner_pipe.py",
+                            root / "windows_owner_pipe.py")
             exchange = root / "exchange"
             exchange.mkdir()
             subprocess.run(["icacls.exe", str(exchange), "/grant:r", f"*{account.sid}:(OI)(CI)M"],
@@ -228,6 +230,24 @@ def run_probe(core_path):
             checks.append("yc_target_drift_and_native_deny_revoke_before_start")
             if server.errors:
                 raise AssertionError("YC_SERVER_THREAD_FAILED")
+            # Reuse this SAME disposable CI account. No new installed-host probe.
+            import windows_owner_pipe as bounded
+            received = []
+            def echo(channel, principal, raw):
+                received.append((channel, principal.sid))
+                return b'{"ok":true}'
+            with bounded.Transport("yc59-bounded-" + uuid.uuid4().hex, account.sid, echo) as transport:
+                request_path = exchange / "bounded-request.json"
+                result_path = exchange / "bounded-result.json"
+                request_path.write_text(json.dumps({"address": transport.addresses["agent"], "pid": os.getpid(),
+                    "owner": {"sid": transport.owner.sid, "session_id": transport.owner.session_id}}), encoding="utf-8")
+                account.run([sys.executable, str(root / "run_boundary_probe.py"), "client-bounded",
+                             "--request", str(request_path), "--output", str(result_path)], exchange)
+                expect(json.loads(result_path.read_text(encoding="utf-8")), ok=True,
+                       token_duplicate_denied=True, process_write_denied=True)
+                if received != [("agent", account.sid)]:
+                    raise AssertionError("BOUNDED_PEER_SID_MISMATCH")
+            checks.append("bounded_transport_cross_account_server_token_query_without_write_or_duplicate")
         finally:
             shutil.rmtree(root)
     return {"schema": "yc59-windows-owner-boundary/v2", "result": "WINDOWS_ACCOUNT_AND_SYNTHETIC_READ_BOUNDARY_OBSERVED",
@@ -253,6 +273,32 @@ def client(request_path, output):
     output.write_text(json.dumps({**value, "client_sid": pipe.current_sid()}), encoding="utf-8")
 
 
+def client_bounded(request_path, output):
+    import windows_owner_pipe as bounded
+    import windows_owner_boundary as boundary
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    k = bounded.Kernel()
+    value = json.loads(bounded.call(request["address"], b"synthetic", expected_pid=request["pid"],
+                                   expected_owner=boundary.Principal(**request["owner"])))
+    process = k.open_process(0x1000, False, request["pid"])
+    if not process:
+        raise AssertionError("SERVER_QUERY_GRANT_MISSING")
+    token = W.HANDLE()
+    try:
+        # TOKEN_DUPLICATE must not be introduced by the read-only identity grant.
+        allowed = k.open_process_token(process, 2, C.byref(token))
+        value["token_duplicate_denied"] = not bool(allowed)
+        if token:
+            k.close(token)
+    finally:
+        k.close(process)
+    writable = k.open_process(0x20, False, request["pid"])  # PROCESS_VM_WRITE
+    value["process_write_denied"] = not bool(writable)
+    if writable:
+        k.close(writable)
+    output.write_text(json.dumps(value), encoding="utf-8")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="mode", required=True)
@@ -261,9 +307,14 @@ def main():
     child = sub.add_parser("client")
     child.add_argument("--request", type=Path, required=True)
     child.add_argument("--output", type=Path, required=True)
+    bounded_child = sub.add_parser("client-bounded")
+    bounded_child.add_argument("--request", type=Path, required=True)
+    bounded_child.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.mode == "client":
         client(args.request, args.output)
+    elif args.mode == "client-bounded":
+        client_bounded(args.request, args.output)
     else:
         print(json.dumps(run_probe(args.owner_core), indent=2))
 
