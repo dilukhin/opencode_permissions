@@ -13,6 +13,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import shutil
 import subprocess
@@ -243,7 +244,10 @@ def run_probe(core_path):
                     "owner": {"sid": transport.owner.sid, "session_id": transport.owner.session_id}}), encoding="utf-8")
                 account.run([sys.executable, str(root / "run_boundary_probe.py"), "client-bounded",
                              "--request", str(request_path), "--output", str(result_path)], exchange)
-                expect(json.loads(result_path.read_text(encoding="utf-8")), ok=True,
+                value = json.loads(result_path.read_text(encoding="utf-8"))
+                if not value.get("ok"):
+                    value["server_fixed_refusal"] = transport.last_refusal.get("agent")
+                expect(value, ok=True,
                        token_duplicate_denied=True, process_write_denied=True, standard_agent_token_proven=True)
                 if received != [("agent", account.sid)]:
                     raise AssertionError("BOUNDED_PEER_SID_MISMATCH")
@@ -323,7 +327,14 @@ def main():
     if args.mode == "client":
         client(args.request, args.output)
     elif args.mode == "client-bounded":
-        client_bounded(args.request, args.output)
+        try:
+            client_bounded(args.request, args.output)
+        except Exception as error:
+            # Disposable synthetic fixture only: no raw OS/path/credential diagnostics.
+            code = str(error)
+            if not re.fullmatch(r"[A-Z][A-Z_]{1,100}", code):
+                code = type(error).__name__
+            args.output.write_text(json.dumps({"ok": False, "code": code}), encoding="utf-8")
     else:
         print(json.dumps(run_probe(args.owner_core), indent=2))
 

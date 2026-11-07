@@ -269,6 +269,7 @@ class Transport:
         self.io_timeout, self.handler_limit = io_timeout, handler_limit
         self.addresses = {name: _address(rf"\\.\pipe\{prefix}-{name}") for name in ("agent", "decision")}
         self.handles, self.threads, self.failed = [], [], threading.Event()
+        self.last_refusal = {}  # at most two fixed codes, never raw requests/exception diagnostics
         try:
             for channel, address in self.addresses.items():
                 acl = f"D:P(A;;GA;;;SY)(A;;GA;;;{self.owner.sid})"
@@ -308,8 +309,8 @@ class Transport:
                     # Explicit ACK replaces unbounded FlushFileBuffers.
                     _require(self.k.transfer(handle, "read", deadline=deadline, stop=self.stop, limit=1) == ACK,
                              "PIPE_REPLY_NOT_ACKNOWLEDGED")
-                except (PipeError, boundary.BoundaryError):
-                    pass  # no raw message/exception retained or logged
+                except (PipeError, boundary.BoundaryError) as error:
+                    self.last_refusal[channel] = str(error)
                 finally:
                     self.k.disconnect(handle)
         except BaseException:
