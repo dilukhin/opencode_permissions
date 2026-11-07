@@ -1,4 +1,6 @@
+import copy
 import json
+import importlib.util
 import sys
 from pathlib import Path
 import unittest
@@ -9,6 +11,12 @@ sys.path.insert(0, str(TOOLS))
 
 import classifier_core as core  # noqa: E402
 import classifier_wrappers as wrappers  # noqa: E402
+
+BROKER_MODULE = ROOT / "tests" / "authorization_broker" / "state_model.py"
+_broker_spec = importlib.util.spec_from_file_location("sudo_job_broker_state_model", BROKER_MODULE)
+broker_state = importlib.util.module_from_spec(_broker_spec)
+assert _broker_spec.loader is not None
+_broker_spec.loader.exec_module(broker_state)
 
 CASES = ROOT / "tests" / "classifier_cases" / "dc3_cases.json"
 
@@ -119,6 +127,8 @@ def wrapper_fact(case):
         )
     if "remote_command" in case:
         fact["remote_command"] = case["remote_command"]
+    if "sudo_job_identity" in case:
+        fact["sudo_job_identity"] = copy.deepcopy(case["sudo_job_identity"])
     if "remote_payload_argv" in case:
         fact["remote_payload"] = {
             "status": "exact",
@@ -222,6 +232,127 @@ class DC3WrapperRemoteTests(unittest.TestCase):
         _, classifier, _ = self.result("ssh_job_tail")
         self.assertEqual(classifier["decision"], "ASK_USER")
         self.assertIn("possible_sensitive_output", classifier["effects"])
+
+    def test_sudo_job_start_has_exact_identity_but_remains_ask(self):
+        _, classifier, combined = self.result("ssh_sudo_job_start_benign")
+        self.assertEqual("ASK_USER", classifier["decision"])
+        self.assertEqual("ASK_USER", combined["decision"])
+        self.assertRegex(classifier["operation_identity"], r"^sha256:[0-9a-f]{64}$")
+        operation = classifier["normalized_operation"]
+        self.assertEqual("remote_exec", operation["operation_kind"])
+        self.assertEqual("start", operation["execution"]["sudo_job_operation"])
+        self.assertEqual("root", operation["execution"]["privilege"])
+        self.assertEqual("remote_argv", operation["execution"]["kind"])
+        self.assertEqual(operation["execution"]["command_sha256"], operation["execution"]["argv"][-1])
+
+    def test_sudo_job_destructive_child_denies(self):
+        _, classifier, combined = self.result("ssh_sudo_job_start_system_write")
+        self.assertEqual("DENY", classifier["decision"])
+        self.assertEqual("DENY", combined["decision"])
+        self.assertIn("system", classifier["effects"])
+
+    def test_sudo_job_read_and_stop_remain_ask(self):
+        for case_id in ("ssh_sudo_job_status", "ssh_sudo_job_tail", "ssh_sudo_job_stop"):
+            with self.subTest(case_id=case_id):
+                _, classifier, combined = self.result(case_id)
+                self.assertEqual("ASK_USER", classifier["decision"])
+                self.assertEqual("ASK_USER", combined["decision"])
+                self.assertRegex(classifier["operation_identity"], r"^sha256:[0-9a-f]{64}$")
+        _, tail, _ = self.result("ssh_sudo_job_tail")
+        self.assertIn("possible_sensitive_output", tail["effects"])
+        _, stop, _ = self.result("ssh_sudo_job_stop")
+        self.assertIn("process_control", stop["effects"])
+        self.assertIn("privilege", stop["effects"])
+
+    def test_sudo_job_identity_file_is_not_self_approval(self):
+        _, classifier, combined = self.result("ssh_sudo_job_missing_binding")
+        self.assertEqual("ASK_USER", classifier["decision"])
+        self.assertEqual("ASK_USER", combined["decision"])
+        self.assertIsNone(classifier["operation_identity"])
+        self.assertIn("unknown", classifier["effects"])
+
+    def test_sudo_job_binding_drift_changes_or_removes_identity(self):
+        case = copy.deepcopy(self.by_id["ssh_sudo_job_start_benign"])
+        first = wrappers.analyze_wrapper(wrapper_fact(case))
+        case["sudo_job_identity"]["value"]["verified_identity"]["connection_generation"] = 8
+        changed = wrappers.analyze_wrapper(wrapper_fact(case))
+        self.assertNotEqual(first["operation_identity"], changed["operation_identity"])
+        case["sudo_job_identity"]["value"]["transaction_id"] = "33333333-3333-4333-8333-333333333333"
+        mismatch = wrappers.analyze_wrapper(wrapper_fact(case))
+        self.assertIsNone(mismatch["operation_identity"])
+        self.assertEqual("ASK_USER", mismatch["decision"])
+
+    def test_sudo_job_invocation_drift_cannot_reuse_one_time_grant(self):
+        original = wrapper_fact(copy.deepcopy(self.by_id["ssh_sudo_job_tail"]))
+        baseline = wrappers.analyze_wrapper(original)["operation_identity"]
+        self.assertIsNotNone(baseline)
+        variants = []
+        for flag, value in (("--name", "other"), ("--stream", "stderr"), ("--bytes", "32")):
+            changed = copy.deepcopy(original)
+            if flag in changed["argv"]:
+                changed["argv"][changed["argv"].index(flag) + 1] = value
+            else:
+                changed["argv"].extend([flag, value])
+            variants.append(changed)
+        for field in ("executable", "cwd"):
+            changed = copy.deepcopy(original)
+            changed[field]["object_identity"] += ":replaced"
+            variants.append(changed)
+        for changed in variants:
+            with self.subTest(changed=changed):
+                identity = wrappers.analyze_wrapper(changed)["operation_identity"]
+                self.assertIsNotNone(identity)
+                self.assertNotEqual(baseline, identity)
+                broker = broker_state.BrokerStateModel()
+                source = ("session", "message", "call")
+                grant = broker.request("host-peer", baseline, source, "ASK_USER")
+                broker.approve_once(grant)
+                with self.assertRaises(broker_state.BrokerContractError):
+                    broker.consume("pep-peer", grant, identity, source)
+
+    def test_sudo_job_start_payload_must_match_actual_cli(self):
+        case = copy.deepcopy(self.by_id["ssh_sudo_job_start_benign"])
+        case["argv"][-1] = "touch /etc/example"
+        result = wrappers.analyze_wrapper(wrapper_fact(case))
+        self.assertEqual("ASK_USER", result["decision"])
+        self.assertIsNone(result["operation_identity"])
+
+    def test_sudo_job_unknown_duplicate_or_invalid_options_have_no_identity(self):
+        case = self.by_id["ssh_sudo_job_tail"]
+        for extra in (["--force"], ["--name", "prod"], ["--bytes", "65537"], ["--stream", "invalid"]):
+            with self.subTest(extra=extra):
+                fact = wrapper_fact(copy.deepcopy(case))
+                fact["argv"].extend(extra)
+                result = wrappers.analyze_wrapper(fact)
+                self.assertEqual("ASK_USER", result["decision"])
+                self.assertIsNone(result["operation_identity"])
+
+    def test_sudo_job_one_time_grant_is_bound_to_exact_operation_identity(self):
+        case = copy.deepcopy(self.by_id["ssh_sudo_job_start_benign"])
+        exact = wrappers.analyze_wrapper(wrapper_fact(case))
+        operation_identity = exact["operation_identity"]
+        self.assertRegex(operation_identity, r"^sha256:[0-9a-f]{64}$")
+
+        source = ("session-sudo-job", "message-1", "call-1")
+        broker = broker_state.BrokerStateModel()
+        authorization_id = broker.request("host-peer", operation_identity, source, "ASK_USER")
+        broker.approve_once(authorization_id)
+
+        changed_case = copy.deepcopy(case)
+        changed_case["sudo_job_identity"]["value"]["verified_identity"]["connection_generation"] = 8
+        changed = wrappers.analyze_wrapper(wrapper_fact(changed_case))
+        self.assertNotEqual(operation_identity, changed["operation_identity"])
+        with self.assertRaises(broker_state.BrokerContractError) as mismatch:
+            broker.consume("pep-peer", authorization_id, changed["operation_identity"], source)
+        self.assertEqual("OPERATION_IDENTITY_MISMATCH", mismatch.exception.code)
+
+        self.assertEqual(
+            "ALLOW_EXECUTION_ONCE",
+            broker.consume("pep-peer", authorization_id, operation_identity, source),
+        )
+        with self.assertRaises(broker_state.BrokerContractError) as replay:
+            broker.consume("pep-peer", authorization_id, operation_identity, source)
+        self.assertEqual("GRANT_ALREADY_CONSUMED", replay.exception.code)
 
     def test_native_deny_remains_terminal(self):
         _, classifier, combined = self.result("native_deny_terminal")
