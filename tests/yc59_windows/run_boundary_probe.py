@@ -233,6 +233,20 @@ def run_probe(core_path):
                 raise AssertionError("YC_SERVER_THREAD_FAILED")
             # Reuse this SAME disposable CI account. No new installed-host probe.
             import windows_owner_pipe as bounded
+            import windows_owner_boundary as actor_boundary
+            privileged_token = W.HANDLE()
+            pipe.checked(pipe.open_process_token(pipe.current_process(), 8, C.byref(privileged_token)))
+            try:
+                try:
+                    actor_boundary.require_standard_agent_token(privileged_token)
+                except actor_boundary.BoundaryError as error:
+                    if str(error) != "STANDARD_AGENT_TOKEN_REQUIRED":
+                        raise
+                else:
+                    raise AssertionError("PRIVILEGED_CI_OWNER_ADMITTED_AS_STANDARD_AGENT")
+            finally:
+                pipe.close(privileged_token)
+            checks.append("privileged_owner_token_refused_by_agent_gate")
             received = []
             def echo(channel, principal, raw):
                 received.append((channel, principal.sid))
