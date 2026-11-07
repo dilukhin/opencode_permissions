@@ -92,7 +92,7 @@ class Kernel:
                               C.c_void_p, C.POINTER(C.c_void_p))
 
     def allow_identity_query(self, agent_sid):
-        """Grant one SID QUERY only on THIS process/token; no debug privilege.
+        """Restrict one SID to QUERY on THIS process/token; no debug privilege.
 
         The grants live with these kernel objects. Existing ACEs are preserved.
         No token duplicate/impersonate/adjust or process VM/write/control access.
@@ -102,14 +102,19 @@ class Kernel:
         try:
             process = self.current_process()
             _require(self.open_process_token(process, 0x60008, C.byref(token)), "PIPE_SERVER_TOKEN_DACL_UNAVAILABLE")
-            for handle, access in ((process, 0x1000), (token, 8)):
+            for handle, access, all_access in ((process, 0x1000, 0x1FFFFF), (token, 8, 0xF01FF)):
                 descriptor, old_acl, new_acl = C.c_void_p(), C.c_void_p(), C.c_void_p()
                 try:
                     _require(self.get_security(handle, 6, 4, None, None, C.byref(old_acl), None,
                                                C.byref(descriptor)) == 0 and old_acl.value,
                              "PIPE_SERVER_DACL_UNAVAILABLE")
-                    entry = ExplicitAccess(access, 1, 0, Trustee(None, 0, 0, 1, sid))
-                    _require(self.merge_acl(1, C.byref(entry), old_acl, C.byref(new_acl)) == 0,
+                    # Default group ACEs may already allow TOKEN_DUPLICATE. An allow
+                    # of QUERY alone cannot narrow them: deny all other mapped rights
+                    # for this exact agent SID, then grant only identity query.
+                    entries = (ExplicitAccess * 2)(
+                        ExplicitAccess(all_access & ~access, 3, 0, Trustee(None, 0, 0, 1, sid)),
+                        ExplicitAccess(access, 1, 0, Trustee(None, 0, 0, 1, sid)))
+                    _require(self.merge_acl(2, entries, old_acl, C.byref(new_acl)) == 0,
                              "PIPE_SERVER_QUERY_GRANT_FAILED")
                     _require(self.set_security(handle, 6, 4, None, None, new_acl, None) == 0,
                              "PIPE_SERVER_QUERY_GRANT_FAILED")
