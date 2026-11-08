@@ -15,6 +15,12 @@ SOURCES = {
     "runtime/yc_snapshot_read.py": "tools/yc_snapshot_read.py",
     "runtime/yc_read_capture.py": "tools/yc_read_capture.py",
     "runtime/yc_read_projection.py": "tools/yc_read_projection.py",
+    "runtime/yc_owner_native_veto.py": "tools/yc_owner_native_veto.py",
+    "runtime/native_policy_matcher.py": "tools/native_policy_matcher.py",
+    "runtime/render_native_policy.py": "tools/render_native_policy.py",
+    "runtime/yc_policy_veto.py": "tools/yc_policy_veto.py",
+    "policy/native/rules.v1.json": "policy/native/rules.v1.json",
+    "policy/yc/yc_policy.v1.json": "policy/yc/yc_policy.v1.json",
 }
 GAPS = ["native_bootstrap_and_file_protection", "live_native_veto_authority",
         "trusted_read_context_and_spawn", "managed_activation_and_installed_acceptance"]

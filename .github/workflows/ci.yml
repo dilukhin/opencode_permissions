@@ -38,12 +38,34 @@ jobs:
       - name: Check Stage 0 inventory CLI
         run: python tools/stage0_inventory.py --help
 
+  runtime-targets:
+    name: Resolve distinct exact OpenCode runtime targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      targets: ${{ steps.versions.outputs.targets }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: versions
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          registry = json.loads(Path('tests/compatibility/registry.json').read_text(encoding='utf-8'))
+          versions = list(dict.fromkeys([registry['current_target'], '1.18.32']))
+          assert all(re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', value) and value in registry['profiles'] for value in versions)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write('targets=' + json.dumps(versions) + '\n')
+          PY
+
   opencode-runtime:
+    needs: runtime-targets
     name: OpenCode ${{ matrix.target }} compatibility runtime proof
     strategy:
       fail-fast: false
       matrix:
-        target: [current, '1.18.32']
+        target: ${{ fromJSON(needs.runtime-targets.outputs.targets) }}
     # DC-4 proves an exact non-symlink executable profile, not arbitrary changes
     # to the system utilities selected by ubuntu-latest.
     runs-on: ubuntu-24.04
@@ -55,14 +77,16 @@ jobs:
           python-version: '3.11'
       - name: Resolve exact current target from compatibility registry
         shell: bash
+        env:
+          OPENCODE_VERSION_SELECTOR: ${{ matrix.target }}
         run: |
           set -euo pipefail
           python - <<'PY' >> "$GITHUB_ENV"
-          import json
+          import json, os
           from pathlib import Path
           root = Path("tests/compatibility")
           registry = json.loads((root / "registry.json").read_text(encoding="utf-8"))
-          version = registry["current_target"] if "${{ matrix.target }}" == "current" else "${{ matrix.target }}"
+          version = os.environ['OPENCODE_VERSION_SELECTOR']
           profile = json.loads((root / registry["profiles"][version]).read_text(encoding="utf-8"))
           asset = profile["release_artifacts"]["linux_x64"]
           print(f"OPENCODE_TARGET_VERSION={version}")
@@ -74,9 +98,16 @@ jobs:
         run: |
           set -euo pipefail
           archive="$RUNNER_TEMP/$OPENCODE_TARGET_ASSET"
-          curl -fL --retry 3 --retry-all-errors \
+          if ! curl -fL --retry 3 --retry-all-errors \
             -o "$archive" \
-            "https://github.com/anomalyco/opencode/releases/download/v$OPENCODE_TARGET_VERSION/$OPENCODE_TARGET_ASSET"
+            "https://github.com/anomalyco/opencode/releases/download/v$OPENCODE_TARGET_VERSION/$OPENCODE_TARGET_ASSET"; then
+            # Same official release asset, independently read back via Connector.
+            # Never substitute another version/mirror or relax the digest check.
+            test "$OPENCODE_TARGET_VERSION" = '1.18.32'
+            test "$OPENCODE_TARGET_ASSET" = 'opencode-linux-x64.tar.gz'
+            curl -fL --max-time 90 -H 'Accept: application/octet-stream' \
+              -o "$archive" 'https://api.github.com/repos/anomalyco/opencode/releases/assets/580000044'
+          fi
           echo "$OPENCODE_TARGET_SHA256  $archive" | sha256sum -c -
           mkdir -p "$RUNNER_TEMP/opencode-current"
           tar -xzf "$archive" -C "$RUNNER_TEMP/opencode-current"
@@ -111,7 +142,14 @@ jobs:
           if ($profile.opencode_version -ne '1.18.32') { throw 'Unexpected compatibility profile' }
           $asset = $profile.release_artifacts.windows_x64
           $archive = Join-Path $env:RUNNER_TEMP $asset.name
-          Invoke-WebRequest -Uri "https://github.com/anomalyco/opencode/releases/download/v1.18.32/$($asset.name)" -OutFile $archive
+          try {
+            Invoke-WebRequest -TimeoutSec 60 -Uri "https://github.com/anomalyco/opencode/releases/download/v1.18.32/$($asset.name)" -OutFile $archive
+          } catch {
+            # Official API route to exactly the same release asset (not a mirror).
+            if ($asset.name -ne 'opencode-windows-x64.zip') { throw }
+            Invoke-WebRequest -TimeoutSec 90 -Headers @{Accept='application/octet-stream'} `
+              -Uri 'https://api.github.com/repos/anomalyco/opencode/releases/assets/580003748' -OutFile $archive
+          }
           $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actual -ne $asset.sha256) { throw "Windows asset SHA-256 mismatch: $actual" }
           $directory = Join-Path $env:RUNNER_TEMP 'opencode-windows-1.18.32'
