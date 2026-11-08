@@ -46,6 +46,28 @@ class OwnerComponentTests(unittest.TestCase):
         core["execution_enabled"] = True
         self.assertNotEqual(builder.identity(core), manifest["artifact_id"])
 
+    def test_explicit_candidate_is_distinct_and_cannot_be_adopted_as_library(self):
+        ref = '9ece957d76b0a5a41caa05956c1665543614ef82'
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'candidate'
+            candidate = builder.materialize(ROOT, output, source_ref=ref)
+            self.assertTrue(candidate['execution_enabled'])
+            self.assertEqual(candidate['source_ref'], ref)
+            self.assertFalse(candidate['installed_acceptance'])
+            self.assertNotEqual(candidate['artifact_id'], builder.plan(ROOT)['manifest']['artifact_id'])
+            with self.assertRaises(builder.ComponentError):
+                builder.validate(ROOT, output)
+            self.assertEqual(builder.validate(ROOT, output, source_ref=ref), candidate)
+        for ref in ('main', '', 'HEAD', '0' * 39):
+            with self.assertRaises(builder.ComponentError):
+                builder.plan(ROOT, source_ref=ref)
+
+    def test_published_candidate_is_exact_authoritative_output(self):
+        ref = '9ece957d76b0a5a41caa05956c1665543614ef82'
+        candidate = builder.plan(ROOT, source_ref=ref)['manifest']
+        path = ROOT / 'dist/yc_owner' / candidate['artifact_id'].replace(':','-',1) / 'manifest.json'
+        self.assertEqual(path.read_bytes(), builder.canonical(candidate) + b'\n')
+
 
 if __name__ == "__main__":
     unittest.main()
