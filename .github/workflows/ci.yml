@@ -38,12 +38,34 @@ jobs:
       - name: Check Stage 0 inventory CLI
         run: python tools/stage0_inventory.py --help
 
+  runtime-targets:
+    name: Resolve distinct exact OpenCode runtime targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      targets: ${{ steps.versions.outputs.targets }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: versions
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          registry = json.loads(Path('tests/compatibility/registry.json').read_text(encoding='utf-8'))
+          versions = list(dict.fromkeys([registry['current_target'], '1.18.32']))
+          assert all(re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', value) and value in registry['profiles'] for value in versions)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write('targets=' + json.dumps(versions) + '\n')
+          PY
+
   opencode-runtime:
+    needs: runtime-targets
     name: OpenCode ${{ matrix.target }} compatibility runtime proof
     strategy:
       fail-fast: false
       matrix:
-        target: [current, '1.18.32']
+        target: ${{ fromJSON(needs.runtime-targets.outputs.targets) }}
     # DC-4 proves an exact non-symlink executable profile, not arbitrary changes
     # to the system utilities selected by ubuntu-latest.
     runs-on: ubuntu-24.04
@@ -55,14 +77,16 @@ jobs:
           python-version: '3.11'
       - name: Resolve exact current target from compatibility registry
         shell: bash
+        env:
+          OPENCODE_VERSION_SELECTOR: ${{ matrix.target }}
         run: |
           set -euo pipefail
           python - <<'PY' >> "$GITHUB_ENV"
-          import json
+          import json, os
           from pathlib import Path
           root = Path("tests/compatibility")
           registry = json.loads((root / "registry.json").read_text(encoding="utf-8"))
-          version = registry["current_target"] if "${{ matrix.target }}" == "current" else "${{ matrix.target }}"
+          version = os.environ['OPENCODE_VERSION_SELECTOR']
           profile = json.loads((root / registry["profiles"][version]).read_text(encoding="utf-8"))
           asset = profile["release_artifacts"]["linux_x64"]
           print(f"OPENCODE_TARGET_VERSION={version}")
