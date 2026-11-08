@@ -15,7 +15,7 @@ class OwnerComponentTests(unittest.TestCase):
         first, second = builder.plan(ROOT), builder.plan(ROOT)
         self.assertEqual(first, second)
         self.assertFalse(first["manifest"]["execution_enabled"])
-        self.assertEqual(len(first["payloads"]), 7)
+        self.assertEqual(len(first["payloads"]), 13)
         self.assertNotIn(b"def main(", first["payloads"]["runtime/approval_owner/ledger.py"])
 
     def test_exact_materialization_and_tampered_payload_or_manifest_refused(self):

@@ -16,6 +16,7 @@ BUNDLE_SOURCES = {
     "policy/yc/yc_policy.v1.json": "policy/yc/yc_policy.v1.json",
     "runtime/yc_transitional_adapter.py": "runtime/yc_guard/yc_transitional_adapter.py",
     "runtime/classifier_yc.py": "tools/classifier_yc.py",
+    "runtime/yc_policy_veto.py": "tools/yc_policy_veto.py",
     "runtime/classifier_core.py": "tools/classifier_core.py",
     "runtime/normalized_operation_identity.py": "tools/normalized_operation_identity.py",
 }

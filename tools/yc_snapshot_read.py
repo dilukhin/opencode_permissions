@@ -78,6 +78,25 @@ class ReadContext:
     platform: str
 
 
+
+def exact_read_argv(ctx):
+    """Single argv constructor used by the read profile and protected veto.
+
+    It does not validate provenance. The composition root supplies ReadContext.
+    """
+    require(type(ctx) is ReadContext and type(ctx.selection) is SnapshotSelection)
+    s = ctx.selection
+    for value in (ctx.cloud_id, s.folder_id, s.vm_id, s.disk_id, s.snapshot_id):
+        require(type(value) is str and re.fullmatch(r"[A-Za-z0-9_-]{1,50}", value) is not None)
+    require(type(ctx.executable_path) is str and 0 < len(ctx.executable_path) <= 1024
+            and all(ord(c) >= 32 for c in ctx.executable_path))
+    common = ["--cloud-id", ctx.cloud_id, "--folder-id", s.folder_id,
+              "--format", "json-rest", "--retry", "0", "--no-user-output", "--no-browser"]
+    steps = [[ctx.executable_path, "compute", kind, "get", "--id", target, *common]
+             for kind, target in (("instance", s.vm_id), ("disk", s.disk_id), ("snapshot", s.snapshot_id))]
+    return steps
+
+
 class ReadProfile:
     def __init__(self, current_context, native_check, *, clock=time.monotonic):
         require(callable(current_context) and callable(native_check) and callable(clock))
@@ -115,10 +134,7 @@ class ReadProfile:
         native = provider_value(self.native_check, ctx)
         require(type(native) is str and native in {"allow", "ask", "deny"}, "YC_READ_NATIVE_UNAVAILABLE")
         require(native != "deny", "YC_READ_NATIVE_DENY")
-        common = ["--cloud-id", ctx.cloud_id, "--folder-id", s.folder_id,
-                  "--format", "json-rest", "--retry", "0", "--no-user-output", "--no-browser"]
-        steps = [[ctx.executable_path, "compute", kind, "get", "--id", target, *common]
-                 for kind, target in (("instance", s.vm_id), ("disk", s.disk_id), ("snapshot", s.snapshot_id))]
+        steps = exact_read_argv(ctx)
         return {"schema": PROFILE, "action": "yc.snapshot.read", "session_id": ctx.session_id,
             "call_id": ctx.call_id, "execution_host_id": ctx.execution_host_id, "policy_revision": ctx.policy_revision,
             "scope": {"cloud_id": ctx.cloud_id, "folder_id": s.folder_id, "vm_id": s.vm_id,
