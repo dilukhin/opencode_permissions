@@ -21,7 +21,7 @@ from approval_owner.read_host import ReadHost
 import windows_owner_boundary as boundary
 from yc_owner_windows_context import WindowsReadContext
 from yc_read_projection import SnapshotSelection
-from yc_snapshot_read import ReadError, require
+from yc_snapshot_read import ReadError, canonical, require
 
 
 def run(config_path):
@@ -61,6 +61,15 @@ def run(config_path):
         native_sha256=pins["policy/native/rules.v1.json"], yc_policy_sha256=pins["policy/yc/yc_policy.v1.json"],
         iam_token=token)
     del token
+    def show_results(host):
+        while True:
+            try:
+                result = host.completed.get_nowait()
+            except queue.Empty:
+                return
+            print(json.dumps({"schema": "yc-owner-result/v1", "component_id": config["component_id"],
+                              "result": result, "result_sha256": hashlib.sha256(canonical(result)).hexdigest()},
+                             ensure_ascii=True, sort_keys=True), flush=True)
     try:
         with ReadHost(config["pipe_prefix"], config["agent_sid"], current_context=sources.current,
                       native_check=sources.veto.check, start=sources.start) as host:
@@ -69,6 +78,7 @@ def run(config_path):
                               "agent_sid": config["agent_sid"], "server_pid": __import__("os").getpid(),
                               "pipe_prefix": config["pipe_prefix"], "approval_required": True}, ensure_ascii=True))
             while time.monotonic() - observed < 60 and not host.stopping.is_set() and not host.transport.failed.is_set():
+                show_results(host)
                 try:
                     bound = host.pending.get(timeout=.2)
                 except queue.Empty:
@@ -78,6 +88,7 @@ def run(config_path):
                 review(owner_call, bound["request_id"], bound["operation_sha256"], terminal=True,
                        owner_actor=actor, agent_sid=config["agent_sid"])
             print("Сеанс владельца завершён. Оставшиеся согласия отменены.")
+        show_results(host)  # include a result finished at the closing boundary
     finally:
         sources.close()
 

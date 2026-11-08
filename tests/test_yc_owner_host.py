@@ -63,6 +63,23 @@ class ReadHostProtocolTests(unittest.TestCase):
                          {k: proposed[k] for k in ("request_id", "operation_sha256")})
         self.start.assert_not_called()
 
+    def test_completed_owner_record_matches_actual_projected_reply_once(self):
+        from test_yc_snapshot_read import responses, child, PRIVATE
+        payloads = responses()
+        self.start.side_effect = lambda execution, argv: child(
+            'import sys;sys.stdout.write(' + repr(json.dumps(payloads[['instance','disk','snapshot'].index(argv[2])])) + ')')
+        proposed = self.propose()
+        bound = {k: proposed[k] for k in ('request_id','operation_sha256')}
+        self.request('decision', OWNER, {'action':'decide', **bound, 'decision':'approve'})
+        result = self.request('agent', AGENT, {'action':'consume', **bound})
+        self.assertTrue(result['ok'])
+        self.assertEqual(result['logical_reads_completed'], 3)
+        self.assertEqual(self.host.completed.get_nowait(), result)
+        self.assertNotIn(PRIVATE, json.dumps(result))
+        replay = self.request('agent', AGENT, {'action':'consume', **bound})
+        self.assertFalse(replay['ok'])
+        self.assertTrue(self.host.completed.empty())
+
     def test_owner_inspects_kernel_origin_and_agent_cannot_decide(self):
         proposed = self.propose()
         bound = {k: proposed[k] for k in ("request_id", "operation_sha256")}
