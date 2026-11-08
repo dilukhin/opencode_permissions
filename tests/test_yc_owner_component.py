@@ -47,7 +47,7 @@ class OwnerComponentTests(unittest.TestCase):
         self.assertNotEqual(builder.identity(core), manifest["artifact_id"])
 
     def test_explicit_candidate_is_distinct_and_cannot_be_adopted_as_library(self):
-        ref = '9ece957d76b0a5a41caa05956c1665543614ef82'
+        ref = '1f7d89d9a8cd2352c6df865e8915f66171475972'
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / 'candidate'
             candidate = builder.materialize(ROOT, output, source_ref=ref)
@@ -63,7 +63,7 @@ class OwnerComponentTests(unittest.TestCase):
                 builder.plan(ROOT, source_ref=ref)
 
     def test_published_candidate_is_exact_authoritative_output(self):
-        ref = '9ece957d76b0a5a41caa05956c1665543614ef82'
+        ref = '1f7d89d9a8cd2352c6df865e8915f66171475972'
         candidate = builder.plan(ROOT, source_ref=ref)['manifest']
         path = ROOT / 'dist/yc_owner' / candidate['artifact_id'].replace(':','-',1) / 'manifest.json'
         self.assertEqual(path.read_bytes(), builder.canonical(candidate) + b'\n')

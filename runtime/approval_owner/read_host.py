@@ -33,6 +33,7 @@ class ReadHost:
             return start(execution, argv)
         self.start, self.origins, self.origin_lock = guarded_start, {}, threading.Lock()
         self.pending = queue.Queue(maxsize=128)
+        self.completed = queue.Queue(maxsize=128)
         try:
             self.transport = Transport(prefix, agent_sid, self.handle)
         except BaseException:
@@ -64,6 +65,9 @@ class ReadHost:
             if channel == "agent" and request.get("action") == "consume":
                 result = dispatch_read(self.ledger, principal.sid, request,
                                        profile=self.profile, start=self.start)
+                # Audit output only, never another grant/authorization table.
+                # Keep the actual projected result even if the pipe reply is lost.
+                self.completed.put_nowait({"ok": True, **result})
             else:
                 result = self.ledger.handle(channel, principal.sid, request)
             if channel == "agent" and request.get("action") == "propose":
