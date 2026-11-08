@@ -47,6 +47,22 @@ class ReadHostProtocolTests(unittest.TestCase):
         self.assertFalse(self.host.ledger.closed)
         self.assertTrue(self.propose()["ok"])
 
+    def test_describe_is_authenticated_unapproved_and_rejects_extra_fields(self):
+        result = self.request("agent", AGENT, {"action": "describe"})
+        self.assertTrue(result["ok"] and result["approval_required"])
+        self.assertEqual(result["operation"], self.host.profile.operation())
+        self.assertEqual(self.host.ledger.entries, {})
+        for actor, request in ((OWNER, {"action": "describe"}),
+                               (AGENT, {"action": "describe", "approved": True})):
+            self.assertFalse(self.request("agent", actor, request)["ok"])
+        self.start.assert_not_called()
+
+    def test_pending_notification_carries_only_actual_ledger_binding(self):
+        proposed = self.propose()
+        self.assertEqual(self.host.pending.get_nowait(),
+                         {k: proposed[k] for k in ("request_id", "operation_sha256")})
+        self.start.assert_not_called()
+
     def test_owner_inspects_kernel_origin_and_agent_cannot_decide(self):
         proposed = self.propose()
         bound = {k: proposed[k] for k in ("request_id", "operation_sha256")}

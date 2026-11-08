@@ -6,6 +6,7 @@ These inputs are constructor-only, never fields of the pipe protocol.
 from __future__ import annotations
 
 import json
+import queue
 import threading
 
 from .ledger import Ledger, Refusal, strict_json
@@ -31,6 +32,7 @@ class ReadHost:
                 raise ReadError("YC_READ_HOST_CLOSED")
             return start(execution, argv)
         self.start, self.origins, self.origin_lock = guarded_start, {}, threading.Lock()
+        self.pending = queue.Queue(maxsize=128)
         try:
             self.transport = Transport(prefix, agent_sid, self.handle)
         except BaseException:
@@ -44,7 +46,14 @@ class ReadHost:
                 boundary.admit(self.owner, principal, self.agent_sid)
             elif channel != "decision" or principal != self.owner:
                 raise Refusal("NOT_DECISION_OWNER")
+            if self.stopping.is_set():
+                raise Refusal("OWNER_CLOSED")
             request = strict_json(raw)
+            if channel == "agent" and request.get("action") == "describe":
+                if set(request) != {"action"}:
+                    raise Refusal("UNEXPECTED_FIELDS")
+                return json.dumps({"ok": True, "operation": self.profile.operation(),
+                                   "approval_required": True}, ensure_ascii=True, allow_nan=False).encode("ascii")
             if channel == "agent" and request.get("action") != "propose":
                 if type(request.get("request_id")) is not str:
                     raise Refusal("UNKNOWN_REQUEST")
@@ -60,13 +69,20 @@ class ReadHost:
             if channel == "agent" and request.get("action") == "propose":
                 with self.origin_lock:
                     self.origins[result["request_id"]] = {"sid": principal.sid, "session_id": principal.session_id}
+                self.pending.put_nowait({k: result[k] for k in ("request_id", "operation_sha256")})
             if channel == "decision" and request.get("action") == "inspect":
                 with self.origin_lock:
                     result = {**result, "owner_actor": {"sid": self.owner.sid, "session_id": self.owner.session_id},
                               "request_origin": self.origins.get(result["request_id"]),
                               "session_separation_required": True}
             return json.dumps({"ok": True, **result}, ensure_ascii=True, allow_nan=False).encode("ascii")
-        except (ReadError, ProjectionError):
+        except ReadError as error:
+            if error.code in {"YC_READ_CLEANUP_INCOMPLETE", "YC_READ_CONTEXT_CHANGED", "YC_READ_PROVIDER_UNAVAILABLE",
+                              "YC_READ_NATIVE_DENY", "YC_READ_OBSERVATION_STALE"}:
+                self.stopping.set()
+                self.ledger.close()
+            return b'{"ok":false,"code":"YC_READ_REFUSED"}'
+        except ProjectionError:
             return b'{"ok":false,"code":"YC_READ_REFUSED"}'
         except boundary.BoundaryError:
             return b'{"ok":false,"code":"OWNER_SESSION_BOUNDARY_REFUSED"}'
